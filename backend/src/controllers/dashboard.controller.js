@@ -55,12 +55,31 @@ export const getStudentDashboard = async (req, res, next) => {
       .limit(10);
 
     // 4. Invoices & Payments
-    const invoices = await FeeInvoice.find({ userId }).sort({ billingPeriodStart: -1 }).limit(6);
-    const payments = await Payment.find({ userId, isReversed: false }).sort({ paidAt: -1 }).limit(6);
+    const invoices = await FeeInvoice.find({ userId }).sort({ billingPeriodStart: -1 }).limit(12);
+    const payments = await Payment.find({ userId, isReversed: false }).sort({ paidAt: -1 }).limit(12);
 
     const totalDuesInPaise = invoices
       .filter((inv) => inv.status !== 'paid' && inv.status !== 'void')
       .reduce((acc, curr) => acc + (curr.balanceInPaise || 0), 0);
+
+    const now = new Date();
+    const paidInvoices = invoices.filter((inv) => inv.status === 'paid');
+    const latestPaidInvoice = paidInvoices[0] || null;
+    let isAdvancePaid = false;
+    let paidUntil = null;
+
+    if (latestPaidInvoice) {
+      paidUntil = latestPaidInvoice.billingPeriodEnd;
+      const periodStart = new Date(latestPaidInvoice.billingPeriodStart);
+      const periodEnd = new Date(paidUntil);
+      if (
+        periodStart > now ||
+        periodEnd.getTime() > now.getTime() + 25 * 24 * 60 * 60 * 1000 ||
+        (latestPaidInvoice.notes && latestPaidInvoice.notes.toLowerCase().includes('advance'))
+      ) {
+        isAdvancePaid = true;
+      }
+    }
 
     return successResponse(
       res,
@@ -86,6 +105,8 @@ export const getStudentDashboard = async (req, res, next) => {
         recentAttendance,
         financials: {
           totalDuesInPaise,
+          isAdvancePaid,
+          paidUntil,
           invoices,
           payments,
         },

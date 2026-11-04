@@ -515,6 +515,7 @@ export default function AdminDashboardPage() {
       });
 
       if (res && res.success) {
+        const allocation = res.data?.allocation;
         setShowPaymentModal(false);
         setPaymentForm({
           invoiceId: '',
@@ -523,8 +524,12 @@ export default function AdminDashboardPage() {
           referenceNumber: '',
           notes: '',
         });
-        fetchBilling();
-        fetchSummaryAndCode();
+        await Promise.all([fetchBilling(), fetchMemberships(), fetchSummaryAndCode()]);
+        if (allocation && allocation.invoices?.length > 1) {
+          alert(`Payment of ₹${amountPaise / 100} recorded successfully!\n\n✓ Current invoice settled.\n🟣 Advance payment credited for next month (${allocation.invoices.length} billing cycles covered)!`);
+        } else {
+          alert(`Payment of ₹${amountPaise / 100} recorded successfully!`);
+        }
       }
     } catch (err) {
       alert(`Payment failed: ${err.message}`);
@@ -616,7 +621,14 @@ export default function AdminDashboardPage() {
   });
 
   const filteredInvoices = invoices.filter((inv) => {
-    if (billingInvoiceStatusFilter && inv.status !== billingInvoiceStatusFilter) return false;
+    if (billingInvoiceStatusFilter) {
+      if (billingInvoiceStatusFilter === 'advance') {
+        const isAdv = (inv.notes && inv.notes.toLowerCase().includes('advance')) || new Date(inv.billingPeriodStart) > new Date();
+        if (!isAdv) return false;
+      } else if (inv.status !== billingInvoiceStatusFilter) {
+        return false;
+      }
+    }
     if (billingSearch.trim()) {
       const q = billingSearch.toLowerCase().trim();
       const studentName = (inv.userId?.name || '').toLowerCase();
@@ -934,6 +946,7 @@ export default function AdminDashboardPage() {
                     <th className="py-3 px-4">Plan / Shift</th>
                     <th className="py-3 px-4">Joining Date</th>
                     <th className="py-3 px-4">Monthly Fee</th>
+                    <th className="py-3 px-4">Fee & Advance Status</th>
                     <th className="py-3 px-4">Status</th>
                     <th className="py-3 px-4 text-right">Actions</th>
                   </tr>
@@ -968,6 +981,41 @@ export default function AdminDashboardPage() {
                         </td>
                         <td className="py-3 px-4 font-bold text-brand-navy-950">
                           ₹{(m.monthlyFeeInPaise / 100).toLocaleString('en-IN')}
+                        </td>
+                        <td className="py-3 px-4">
+                          {m.billingSummary?.isAdvancePaid ? (
+                            <div>
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-900 border border-purple-200 shadow-soft-sm">
+                                <span className="w-1.5 h-1.5 rounded-full bg-purple-600 animate-pulse" />
+                                ✓ Advance Paid
+                              </span>
+                              {m.billingSummary.paidUntil && (
+                                <span className="text-[10px] text-purple-700 block font-semibold mt-0.5">
+                                  Covered till {new Date(m.billingSummary.paidUntil).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                </span>
+                              )}
+                            </div>
+                          ) : m.billingSummary?.totalDuePaise > 0 ? (
+                            <div>
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
+                                Due: ₹{(m.billingSummary.totalDuePaise / 100).toLocaleString('en-IN')}
+                              </span>
+                              <span className="text-[10px] text-rose-600 block mt-0.5">
+                                {m.billingSummary.unpaidCount} unpaid cycle(s)
+                              </span>
+                            </div>
+                          ) : m.billingSummary?.paidUntil ? (
+                            <div>
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                ✓ Current Cycle Paid
+                              </span>
+                              <span className="text-[10px] text-emerald-700 block mt-0.5">
+                                Till {new Date(m.billingSummary.paidUntil).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-[10px] text-brand-navy-400 italic">No invoices yet</span>
+                          )}
                         </td>
                         <td className="py-3 px-4">
                           <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
@@ -1287,6 +1335,7 @@ export default function AdminDashboardPage() {
                     className="w-full py-1.5 px-2.5 text-xs rounded-lg border border-brand-surface-border bg-white text-brand-navy-950 font-medium focus:outline-none focus:ring-2 focus:ring-brand-gold-500"
                   >
                     <option value="">All Invoices (Paid & Unpaid)</option>
+                    <option value="advance">🟣 Advance Invoices Only</option>
                     <option value="paid">Fully Settled (Paid)</option>
                     <option value="partially_paid">Partially Paid</option>
                     <option value="unpaid">Completely Unpaid</option>
@@ -1367,7 +1416,12 @@ export default function AdminDashboardPage() {
                             </span>
                           </td>
                           <td className="py-3 px-4 font-mono text-brand-navy-600">
-                            {p.invoiceId?.invoiceNumber || '—'}
+                            <div>{p.invoiceId?.invoiceNumber || '—'}</div>
+                            {p.notes && (
+                              <div className="text-[10px] text-brand-navy-500 font-sans italic max-w-xs truncate" title={p.notes}>
+                                {p.notes}
+                              </div>
+                            )}
                           </td>
                           <td className="py-3 px-4 text-brand-navy-600 font-mono text-[11px]">
                             {new Date(p.paidAt).toLocaleString('en-IN', {
@@ -1379,15 +1433,22 @@ export default function AdminDashboardPage() {
                             })}
                           </td>
                           <td className="py-3 px-4">
-                            <span
-                              className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                                p.isReversed
-                                  ? 'bg-rose-100 text-rose-800'
-                                  : 'bg-emerald-100 text-emerald-800'
-                              }`}
-                            >
-                              {p.isReversed ? 'Reversed' : 'Settled'}
-                            </span>
+                            <div className="flex flex-col gap-1">
+                              <span
+                                className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase w-fit ${
+                                  p.isReversed
+                                    ? 'bg-rose-100 text-rose-800'
+                                    : 'bg-emerald-100 text-emerald-800'
+                                }`}
+                              >
+                                {p.isReversed ? 'Reversed' : 'Settled'}
+                              </span>
+                              {p.notes && p.notes.toLowerCase().includes('advance') && (
+                                <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-purple-100 text-purple-900 border border-purple-200 w-fit">
+                                  Advance Allocation
+                                </span>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -1494,9 +1555,16 @@ export default function AdminDashboardPage() {
                             {inv.userId?.name || 'Student'}
                           </td>
                           <td className="py-3 px-4 text-brand-navy-600 font-mono text-[11px]">
-                            {new Date(inv.billingPeriodStart).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })}
-                            {' - '}
-                            {new Date(inv.billingPeriodEnd).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' })}
+                            <div>
+                              {new Date(inv.billingPeriodStart).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })}
+                              {' - '}
+                              {new Date(inv.billingPeriodEnd).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' })}
+                            </div>
+                            {((inv.notes && inv.notes.toLowerCase().includes('advance')) || new Date(inv.billingPeriodStart) > new Date()) && (
+                              <span className="text-[10px] text-purple-700 font-bold block mt-0.5">
+                                🟣 Advance Month Cycle
+                              </span>
+                            )}
                           </td>
                           <td className="py-3 px-4 font-semibold text-brand-navy-900">
                             ₹{(inv.feeAmountInPaise / 100).toLocaleString('en-IN')}
@@ -1508,17 +1576,24 @@ export default function AdminDashboardPage() {
                             ₹{(inv.balanceInPaise / 100).toLocaleString('en-IN')}
                           </td>
                           <td className="py-3 px-4">
-                            <span
-                              className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                                inv.status === 'paid'
-                                  ? 'bg-emerald-100 text-emerald-800'
-                                  : inv.status === 'partially_paid'
-                                  ? 'bg-amber-100 text-amber-800'
-                                  : 'bg-rose-100 text-rose-800'
-                              }`}
-                            >
-                              {inv.status}
-                            </span>
+                            {((inv.notes && inv.notes.toLowerCase().includes('advance')) || new Date(inv.billingPeriodStart) > new Date()) && inv.status === 'paid' ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-900 border border-purple-200">
+                                <span className="w-1.5 h-1.5 rounded-full bg-purple-600 animate-pulse" />
+                                ADVANCE PAID
+                              </span>
+                            ) : (
+                              <span
+                                className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                                  inv.status === 'paid'
+                                    ? 'bg-emerald-100 text-emerald-800'
+                                    : inv.status === 'partially_paid'
+                                    ? 'bg-amber-100 text-amber-800'
+                                    : 'bg-rose-100 text-rose-800'
+                                }`}
+                              >
+                                {inv.status}
+                              </span>
+                            )}
                           </td>
                         </tr>
                       ))}
@@ -2103,6 +2178,65 @@ export default function AdminDashboardPage() {
                   placeholder="e.g. 600 or 1000"
                   className="w-full px-3 py-2 rounded-xl border border-brand-surface-border text-brand-navy-950 focus:outline-none font-bold"
                 />
+
+                {/* Live Real-time Advance & Payment Allocation Preview Card */}
+                {(() => {
+                  const selectedInv = invoices.find((inv) => String(inv._id) === String(paymentForm.invoiceId));
+                  if (!selectedInv || !Number(paymentForm.amountRupees)) return null;
+
+                  const currentDue = selectedInv.balanceInPaise / 100;
+                  const entered = Number(paymentForm.amountRupees);
+                  const isExcess = entered > currentDue;
+                  const isPartial = entered < currentDue;
+                  const excessAmount = isExcess ? entered - currentDue : 0;
+                  const remainingDue = isPartial ? currentDue - entered : 0;
+
+                  return (
+                    <div className="mt-2 p-3 rounded-xl border space-y-1.5 text-xs bg-brand-surface-muted/60">
+                      <div className="flex items-center justify-between font-bold text-brand-navy-900 border-b border-brand-surface-border pb-1">
+                        <span>Payment Breakdown</span>
+                        <span className="font-mono text-brand-navy-950 font-bold">Total ₹{entered}</span>
+                      </div>
+
+                      {isExcess ? (
+                        <div className="space-y-1 pt-1 text-purple-950">
+                          <div className="flex items-center justify-between text-emerald-800 font-semibold">
+                            <span>✓ Current Cycle ({selectedInv.invoiceNumber}):</span>
+                            <span className="font-bold">₹{currentDue} (100% Cleared)</span>
+                          </div>
+                          <div className="flex items-center justify-between pt-1 border-t border-purple-200 text-purple-900 font-bold">
+                            <span className="flex items-center gap-1">
+                              🟣 Next Month Advance:
+                            </span>
+                            <span className="font-extrabold text-purple-950 font-mono">
+                              ₹{excessAmount}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-purple-700 font-medium">
+                            An advance invoice for next month will be auto-generated and marked Paid!
+                          </p>
+                        </div>
+                      ) : isPartial ? (
+                        <div className="space-y-1 pt-1 text-amber-900 font-semibold">
+                          <div className="flex items-center justify-between">
+                            <span>Partial Payment towards {selectedInv.invoiceNumber}:</span>
+                            <span className="font-bold text-blue-800">₹{entered}</span>
+                          </div>
+                          <div className="flex items-center justify-between pt-1 border-t border-amber-200 text-amber-950">
+                            <span>Remaining Balance on Invoice:</span>
+                            <span className="font-bold text-amber-800 font-mono">₹{remainingDue}</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="pt-1 text-emerald-800 font-bold flex items-center justify-between">
+                          <span>Full Settlement of {selectedInv.invoiceNumber}:</span>
+                          <span>₹{entered} (100% Settled)</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
                 <p className="text-[10px] text-brand-navy-500 mt-1">
                   💡 Note: You can enter any amount. Excess payment (e.g. ₹1000 for ₹500 fee) automatically pays next month's advance! Partial payment carries forward as pending balance.
                 </p>

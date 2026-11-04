@@ -421,14 +421,31 @@ export default function StudentDashboardPage() {
             <div className="bg-white rounded-2xl p-6 shadow-soft border border-brand-surface-border">
               <h3 className="text-sm font-bold text-brand-navy-950 uppercase tracking-wider mb-3 flex items-center gap-2">
                 <CreditCard className="w-4 h-4 text-brand-gold-600" />
-                Outstanding Dues
+                Fee & Payment Status
               </h3>
-              <div className="p-4 rounded-xl bg-brand-surface-muted border border-brand-surface-border text-center">
-                <span className="text-xs text-brand-navy-500 font-semibold block">Total Pending Balance</span>
-                <span className={`text-2xl font-bold block mt-1 ${totalDuesPaise > 0 ? 'text-amber-700' : 'text-emerald-700'}`}>
-                  ₹{(totalDuesPaise / 100).toLocaleString('en-IN')}
-                </span>
-              </div>
+              {financials?.isAdvancePaid ? (
+                <div className="p-4 rounded-xl bg-purple-50 border border-purple-200 text-center">
+                  <span className="text-[11px] text-purple-700 font-bold uppercase tracking-wider block">
+                    Advance Payment Active
+                  </span>
+                  <span className="text-xl font-extrabold text-purple-950 block mt-1">
+                    ✓ Paid in Advance
+                  </span>
+                  <span className="text-xs text-purple-700 font-semibold block mt-1">
+                    Fee covered up to {financials.paidUntil ? new Date(financials.paidUntil).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Next Cycle'}
+                  </span>
+                  <span className="inline-block mt-2 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-200 text-purple-900">
+                    No Dues Pending
+                  </span>
+                </div>
+              ) : (
+                <div className="p-4 rounded-xl bg-brand-surface-muted border border-brand-surface-border text-center">
+                  <span className="text-xs text-brand-navy-500 font-semibold block">Total Pending Balance</span>
+                  <span className={`text-2xl font-bold block mt-1 ${totalDuesPaise > 0 ? 'text-amber-700' : 'text-emerald-700'}`}>
+                    ₹{(totalDuesPaise / 100).toLocaleString('en-IN')}
+                  </span>
+                </div>
+              )}
               <p className="text-[11px] text-brand-navy-500 mt-3 text-center">
                 Dues can be cleared via Cash, UPI, or Bank Transfer at the library front desk.
               </p>
@@ -527,15 +544,21 @@ export default function StudentDashboardPage() {
                         <td className="py-3 px-4 text-emerald-700 font-semibold">₹{(inv.amountPaidInPaise / 100).toLocaleString('en-IN')}</td>
                         <td className="py-3 px-4 font-bold text-amber-800">₹{(inv.balanceInPaise / 100).toLocaleString('en-IN')}</td>
                         <td className="py-3 px-4">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                            inv.status === 'paid'
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : inv.status === 'partially_paid'
-                              ? 'bg-blue-100 text-blue-800'
-                              : 'bg-amber-100 text-amber-800'
-                          }`}>
-                            {inv.status}
-                          </span>
+                          {((inv.notes && inv.notes.toLowerCase().includes('advance')) || new Date(inv.billingPeriodStart) > new Date()) && inv.status === 'paid' ? (
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-purple-100 text-purple-800 border border-purple-200">
+                              ADVANCE PAID
+                            </span>
+                          ) : (
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                              inv.status === 'paid'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : inv.status === 'partially_paid'
+                                ? 'bg-blue-100 text-blue-800'
+                                : 'bg-amber-100 text-amber-800'
+                            }`}>
+                              {inv.status}
+                            </span>
+                          )}
                         </td>
                       </tr>
                     ))}

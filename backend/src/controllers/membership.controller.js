@@ -47,8 +47,52 @@ export async function listMemberships(req, res, next) {
       Membership.countDocuments(query),
     ]);
 
+    // Enrich memberships with billing status & advance payment tracking
+    const membershipIds = memberships.map((m) => m._id);
+    const allInvoices = await FeeInvoice.find({ membershipId: { $in: membershipIds } })
+      .sort({ billingPeriodEnd: -1 })
+      .lean();
+
+    const now = new Date();
+    const enrichedMemberships = memberships.map((m) => {
+      const memberInvoices = allInvoices.filter((inv) => String(inv.membershipId) === String(m._id));
+      const unpaidInvoices = memberInvoices.filter((inv) => (inv.balanceInPaise || 0) > 0);
+      const totalDuePaise = unpaidInvoices.reduce((sum, inv) => sum + (inv.balanceInPaise || 0), 0);
+
+      const paidInvoices = memberInvoices.filter((inv) => inv.status === 'paid');
+      const latestPaidInvoice = paidInvoices[0] || null;
+
+      let isAdvancePaid = false;
+      let paidUntil = null;
+
+      if (latestPaidInvoice) {
+        paidUntil = latestPaidInvoice.billingPeriodEnd;
+        const periodStart = new Date(latestPaidInvoice.billingPeriodStart);
+        const periodEnd = new Date(paidUntil);
+        // If billing period starts after today or extends well into the next month, or marked as advance in notes
+        if (
+          periodStart > now ||
+          periodEnd.getTime() > now.getTime() + 25 * 24 * 60 * 60 * 1000 ||
+          (latestPaidInvoice.notes && latestPaidInvoice.notes.toLowerCase().includes('advance'))
+        ) {
+          isAdvancePaid = true;
+        }
+      }
+
+      return {
+        ...m,
+        billingSummary: {
+          totalDuePaise,
+          unpaidCount: unpaidInvoices.length,
+          paidUntil,
+          isAdvancePaid,
+          latestInvoice: memberInvoices[0] || null,
+        },
+      };
+    });
+
     return successResponse(res, {
-      memberships,
+      memberships: enrichedMemberships,
       pagination: {
         page: pageNum,
         limit: limitNum,
