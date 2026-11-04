@@ -7,6 +7,7 @@ import {
   calculateDueDate,
   formatDateKey,
 } from '../utils/billingCalculator.js';
+import { allocatePayment } from '../utils/paymentAllocation.js';
 import { sendPaymentReceiptEmail } from '../services/emailService.js';
 import { successResponse, errorResponse } from '../utils/response.js';
 import logger from '../utils/logger.js';
@@ -133,15 +134,11 @@ export async function recordPayment(req, res, next) {
       return errorResponse(res, 'This invoice is already fully paid', 400);
     }
 
-    if (parsedAmount > invoice.balanceInPaise) {
-      return errorResponse(
-        res,
-        `Payment amount (₹${parsedAmount / 100}) cannot exceed remaining balance (₹${invoice.balanceInPaise / 100})`,
-        400
-      );
+    const membership = await Membership.findById(invoice.membershipId);
+    if (!membership) {
+      return errorResponse(res, 'Associated membership not found', 404);
     }
 
-    const paymentNumber = generateReceiptNumber('RCP', new Date());
     const effectivePaidAt = paidAt ? new Date(paidAt) : new Date();
     const adminId = (req.user && req.user._id)
       ? req.user._id
@@ -149,83 +146,74 @@ export async function recordPayment(req, res, next) {
         ? new mongoose.Types.ObjectId(req.user.id)
         : new mongoose.Types.ObjectId('507f1f77bcf86cd799439099');
 
-    const payment = await Payment.create({
-      paymentNumber,
-      invoiceId: invoice._id,
-      membershipId: invoice.membershipId,
-      userId: invoice.userId._id,
+    const allocation = await allocatePayment({
+      membership,
+      user: invoice.userId,
       amountInPaise: parsedAmount,
+      method,
+      referenceNumber,
+      notes,
+      adminId,
       paidAt: effectivePaidAt,
-      method: method.toUpperCase(),
-      referenceNumber: referenceNumber ? referenceNumber.trim() : '',
-      recordedByAdminId: adminId,
-      recordedBy: adminId,
-      notes: notes ? notes.trim() : '',
-      isReversed: false,
+      primaryInvoiceId: invoice._id,
     });
 
-    const newAmountPaid = invoice.amountPaidInPaise + parsedAmount;
-    const newBalance = invoice.balanceInPaise - parsedAmount;
-    const newStatus = newBalance === 0 ? 'paid' : 'partially_paid';
-
-    const beforeState = {
-      amountPaidInPaise: invoice.amountPaidInPaise,
-      balanceInPaise: invoice.balanceInPaise,
-      status: invoice.status,
-    };
-
-    invoice.amountPaidInPaise = newAmountPaid;
-    invoice.balanceInPaise = newBalance;
-    invoice.status = newStatus;
-    await invoice.save();
+    const primaryPayment = allocation.payments[0] || null;
+    const latestInvoiceState = await FeeInvoice.findById(invoice._id);
 
     await AuditLog.create({
       actor: {
-        id: req.user._id,
-        email: req.user.email,
-        role: req.user.role,
+        id: adminId,
+        email: req.user?.email || 'admin@libraryhub.in',
+        role: req.user?.role || 'admin',
       },
       action: 'PAYMENT_RECORD',
       targetEntity: 'Payment',
-      targetId: payment._id,
-      beforeState,
+      targetId: primaryPayment ? primaryPayment._id : invoice._id,
+      beforeState: { balanceInPaise: invoice.balanceInPaise, status: invoice.status },
       afterState: {
-        paymentId: payment._id,
-        paymentNumber,
         amountInPaise: parsedAmount,
-        invoiceBalanceInPaise: newBalance,
-        status: newStatus,
+        paymentsCreated: allocation.payments.length,
+        invoicesAffected: allocation.invoices.length,
+        latestInvoiceStatus: latestInvoiceState?.status,
+        latestInvoiceBalance: latestInvoiceState?.balanceInPaise,
       },
-      reason: notes || `Payment recorded via ${method.toUpperCase()}`,
+      reason: notes || `Payment recorded via ${method.toUpperCase()} across ${allocation.payments.length} cycle(s)`,
     });
 
-    sendPaymentReceiptEmail({
-      user: invoice.userId,
-      payment: {
-        receiptNumber: paymentNumber,
-        amountPaise: parsedAmount,
-        paymentMethod: method,
-      },
-      invoice: {
-        balancePaise: newBalance,
-      },
-    }).catch((e) => logger.error(`Email error on payment receipt: ${e.message}`));
+    if (primaryPayment) {
+      sendPaymentReceiptEmail({
+        user: invoice.userId,
+        payment: {
+          receiptNumber: primaryPayment.paymentNumber,
+          amountPaise: parsedAmount,
+          paymentMethod: method,
+        },
+        invoice: {
+          balancePaise: latestInvoiceState?.balanceInPaise || 0,
+        },
+      }).catch((e) => logger.error(`Email error on payment receipt: ${e.message}`));
+    }
 
-    logger.info(`Payment recorded: ₹${parsedAmount / 100} for invoice ${invoice.invoiceNumber} (Receipt: ${paymentNumber})`);
+    logger.info(`Payment recorded: ₹${parsedAmount / 100} for user ${invoice.userId.email} across ${allocation.payments.length} cycle(s)`);
 
     return successResponse(
       res,
       {
-        payment,
+        payment: primaryPayment,
+        payments: allocation.payments,
+        invoices: allocation.invoices,
         invoice: {
           id: invoice._id,
           invoiceNumber: invoice.invoiceNumber,
-          amountPaidInPaise: invoice.amountPaidInPaise,
-          balanceInPaise: invoice.balanceInPaise,
-          status: invoice.status,
+          amountPaidInPaise: latestInvoiceState?.amountPaidInPaise || invoice.amountPaidInPaise,
+          balanceInPaise: latestInvoiceState?.balanceInPaise || 0,
+          status: latestInvoiceState?.status || 'paid',
         },
       },
-      'Payment recorded successfully',
+      allocation.payments.length > 1
+        ? `Payment of ₹${parsedAmount / 100} recorded successfully across ${allocation.payments.length} cycles (including next month's advance)!`
+        : 'Payment recorded successfully',
       201
     );
   } catch (err) {
@@ -446,9 +434,15 @@ export async function runBillingCycleJob() {
   let generatedCount = 0;
 
   for (const m of activeMemberships) {
-    const nextBill = calculateNextBillingDate(m.joiningDate, m.billingAnchorDay);
-    if (nextBill <= today) {
-      const cycleStart = nextBill;
+    const latestInv = await FeeInvoice.findOne({ membershipId: m._id }).sort({ billingPeriodEnd: -1 });
+    let cycleStart;
+    if (latestInv && latestInv.billingPeriodEnd) {
+      cycleStart = new Date(latestInv.billingPeriodEnd.getTime() + 24 * 60 * 60 * 1000);
+    } else {
+      cycleStart = calculateNextBillingDate(m.joiningDate, m.billingAnchorDay);
+    }
+
+    if (cycleStart <= today) {
       const followingBill = calculateNextBillingDate(cycleStart, m.billingAnchorDay);
       const periodEnd = new Date(followingBill.getTime() - 24 * 60 * 60 * 1000);
       const periodKey = `${m._id}_${formatDateKey(cycleStart)}`;

@@ -52,6 +52,8 @@ export default function AdminDashboardPage() {
 
   const [invoices, setInvoices] = useState([]);
   const [duesList, setDuesList] = useState([]);
+  const [paymentsList, setPaymentsList] = useState([]);
+  const [billingSubTab, setBillingSubTab] = useState('payments'); // 'payments' | 'dues' | 'invoices'
   const [loadingBilling, setLoadingBilling] = useState(false);
 
   const [campaigns, setCampaigns] = useState([]);
@@ -68,6 +70,9 @@ export default function AdminDashboardPage() {
     phone: '',
     planType: 'full_day',
     monthlyFee: 1000,
+    initialPayment: 1000,
+    paymentMethod: 'CASH',
+    referenceNumber: '',
     joiningDate: new Date().toISOString().split('T')[0],
     targetExam: '',
     notes: '',
@@ -159,12 +164,14 @@ export default function AdminDashboardPage() {
   const fetchBilling = async () => {
     try {
       setLoadingBilling(true);
-      const [invRes, duesRes] = await Promise.all([
+      const [invRes, duesRes, payRes] = await Promise.all([
         client.get(API_ENDPOINTS.BILLING.INVOICES),
         client.get(API_ENDPOINTS.BILLING.OUTSTANDING_DUES),
+        client.get(API_ENDPOINTS.BILLING.PAYMENT_HISTORY),
       ]);
       if (invRes && invRes.success) setInvoices(invRes.data.invoices || []);
       if (duesRes && duesRes.success) setDuesList(duesRes.data.duesByUser || []);
+      if (payRes && payRes.success) setPaymentsList(payRes.data.payments || []);
     } catch (err) {
       console.error('Error loading billing:', err);
     } finally {
@@ -251,6 +258,7 @@ export default function AdminDashboardPage() {
       ...prev,
       planType: type,
       monthlyFee: fee,
+      initialPayment: fee,
     }));
   };
 
@@ -294,6 +302,9 @@ export default function AdminDashboardPage() {
         phone: enrollForm.phone.trim(),
         joiningDate: enrollForm.joiningDate,
         monthlyFeeInPaise: Math.round(Number(enrollForm.monthlyFee) * 100),
+        initialPaymentInPaise: Math.round(Number(enrollForm.initialPayment || 0) * 100),
+        paymentMethod: enrollForm.paymentMethod || 'CASH',
+        referenceNumber: enrollForm.referenceNumber?.trim() || '',
         planId: planMeta.planId,
         planName: planMeta.planName,
         slotType: planMeta.slotType,
@@ -302,13 +313,20 @@ export default function AdminDashboardPage() {
       });
 
       if (res && res.success) {
-        setEnrollSuccess(`Member "${enrollForm.name}" enrolled successfully! They can now log in using Google with ${enrollForm.email}.`);
+        setEnrollSuccess(
+          Number(enrollForm.initialPayment) > 0
+            ? `Member "${enrollForm.name}" enrolled & payment of ₹${enrollForm.initialPayment} recorded successfully!`
+            : `Member "${enrollForm.name}" enrolled successfully! They can now log in using Google with ${enrollForm.email}.`
+        );
         setEnrollForm({
           name: '',
           email: '',
           phone: '',
           planType: 'full_day',
           monthlyFee: 1000,
+          initialPayment: 1000,
+          paymentMethod: 'CASH',
+          referenceNumber: '',
           joiningDate: new Date().toISOString().split('T')[0],
           targetExam: '',
           notes: '',
@@ -787,60 +805,256 @@ export default function AdminDashboardPage() {
 
       {/* TAB 4: FEES & RECORD PAYMENT */}
       {activeTab === 'fees' && (
-        <div className="space-y-8">
+        <div className="space-y-6">
           <div className="bg-white rounded-2xl p-6 shadow-soft border border-brand-surface-border">
-            <div className="flex items-center justify-between mb-6">
+            {/* Top Toolbar */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
               <div>
-                <h2 className="text-lg font-bold text-brand-navy-950">Pending Fee Balances</h2>
+                <h2 className="text-lg font-bold text-brand-navy-950">Fees & Collection History</h2>
                 <p className="text-xs text-brand-navy-500">
-                  Students with outstanding balances across active and inactive memberships.
+                  Track student fee collections, payment receipts, outstanding balances, and monthly invoices.
                 </p>
               </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowPaymentModal(true)}
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition-colors shadow-soft-sm"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Record Manual Payment</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Sub-tab Navigation */}
+            <div className="flex items-center gap-2 border-b border-brand-surface-border pb-3 mb-5">
               <button
-                onClick={() => setShowPaymentModal(true)}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition-colors"
+                type="button"
+                onClick={() => setBillingSubTab('payments')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  billingSubTab === 'payments'
+                    ? 'bg-brand-navy-950 text-white shadow-soft-sm'
+                    : 'text-brand-navy-600 hover:bg-brand-surface-muted hover:text-brand-navy-950'
+                }`}
               >
-                <Plus className="w-4 h-4" />
-                <span>Record Manual Payment</span>
+                Collection Receipts ({paymentsList.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setBillingSubTab('dues')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  billingSubTab === 'dues'
+                    ? 'bg-brand-navy-950 text-white shadow-soft-sm'
+                    : 'text-brand-navy-600 hover:bg-brand-surface-muted hover:text-brand-navy-950'
+                }`}
+              >
+                Pending Dues ({duesList.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setBillingSubTab('invoices')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  billingSubTab === 'invoices'
+                    ? 'bg-brand-navy-950 text-white shadow-soft-sm'
+                    : 'text-brand-navy-600 hover:bg-brand-surface-muted hover:text-brand-navy-950'
+                }`}
+              >
+                All Monthly Invoices ({invoices.length})
               </button>
             </div>
 
             {loadingBilling ? (
               <div className="py-12 text-center text-xs font-semibold text-brand-navy-500">
                 <Loader2 className="w-6 h-6 animate-spin mx-auto text-brand-gold-600 mb-2" />
-                Loading fee records...
+                Loading billing and payment records...
               </div>
-            ) : duesList.length === 0 ? (
-              <div className="py-12 text-center text-xs text-emerald-700 font-semibold">
-                All student balances are completely settled!
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead>
-                    <tr className="border-b border-brand-surface-border text-brand-navy-500 uppercase font-bold tracking-wider">
-                      <th className="py-3 px-4">Student</th>
-                      <th className="py-3 px-4">Contact</th>
-                      <th className="py-3 px-4">Membership Plan</th>
-                      <th className="py-3 px-4">Unpaid Invoices</th>
-                      <th className="py-3 px-4">Total Due</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-brand-surface-border">
-                    {duesList.map((due) => (
-                      <tr key={due._id} className="hover:bg-brand-surface-muted/50 transition-colors">
-                        <td className="py-3 px-4 font-bold text-brand-navy-950">{due.user?.name}</td>
-                        <td className="py-3 px-4 text-brand-navy-600">{due.user?.email}</td>
-                        <td className="py-3 px-4 text-brand-navy-800">{due.membershipPlan || '—'}</td>
-                        <td className="py-3 px-4 text-brand-navy-700 font-semibold">{due.unpaidInvoiceCount}</td>
-                        <td className="py-3 px-4 font-bold text-amber-800">
-                          ₹{(due.totalDuePaise / 100).toLocaleString('en-IN')}
-                        </td>
+            ) : billingSubTab === 'payments' ? (
+              /* SUBTAB 1: PAYMENT COLLECTION HISTORY */
+              paymentsList.length === 0 ? (
+                <div className="py-12 text-center text-xs text-brand-navy-500 font-semibold">
+                  No payment receipts recorded yet. Click "Record Manual Payment" or enroll members with initial fee.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="border-b border-brand-surface-border text-brand-navy-500 uppercase font-bold tracking-wider">
+                        <th className="py-3 px-4">Receipt #</th>
+                        <th className="py-3 px-4">Student</th>
+                        <th className="py-3 px-4">Amount Paid</th>
+                        <th className="py-3 px-4">Payment Method</th>
+                        <th className="py-3 px-4">Invoice Ref</th>
+                        <th className="py-3 px-4">Date & Time (IST)</th>
+                        <th className="py-3 px-4">Status</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody className="divide-y divide-brand-surface-border">
+                      {paymentsList.map((p) => (
+                        <tr key={p._id} className="hover:bg-brand-surface-muted/50 transition-colors">
+                          <td className="py-3 px-4 font-mono font-bold text-brand-gold-700">
+                            {p.paymentNumber}
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="font-bold text-brand-navy-950">{p.userId?.name || 'Student'}</div>
+                            <div className="text-[11px] text-brand-navy-500">{p.userId?.email}</div>
+                          </td>
+                          <td className="py-3 px-4">
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800">
+                              ₹{(p.amountInPaise / 100).toLocaleString('en-IN')}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4">
+                            <span className="font-semibold text-brand-navy-800 uppercase text-[11px] px-2 py-0.5 rounded bg-brand-surface-muted border border-brand-surface-border">
+                              {p.method}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 font-mono text-brand-navy-600">
+                            {p.invoiceId?.invoiceNumber || '—'}
+                          </td>
+                          <td className="py-3 px-4 text-brand-navy-600 font-mono text-[11px]">
+                            {new Date(p.paidAt).toLocaleString('en-IN', {
+                              day: '2-digit',
+                              month: 'short',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </td>
+                          <td className="py-3 px-4">
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                                p.isReversed
+                                  ? 'bg-rose-100 text-rose-800'
+                                  : 'bg-emerald-100 text-emerald-800'
+                              }`}
+                            >
+                              {p.isReversed ? 'Reversed' : 'Settled'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )
+            ) : billingSubTab === 'dues' ? (
+              /* SUBTAB 2: PENDING DUES */
+              duesList.length === 0 ? (
+                <div className="py-12 text-center text-xs text-emerald-700 font-semibold flex items-center justify-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  All student balances are completely settled! No outstanding dues.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="border-b border-brand-surface-border text-brand-navy-500 uppercase font-bold tracking-wider">
+                        <th className="py-3 px-4">Student</th>
+                        <th className="py-3 px-4">Contact</th>
+                        <th className="py-3 px-4">Membership Plan</th>
+                        <th className="py-3 px-4">Unpaid Invoices</th>
+                        <th className="py-3 px-4">Total Due</th>
+                        <th className="py-3 px-4 text-right">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-brand-surface-border">
+                      {duesList.map((due) => (
+                        <tr key={due._id} className="hover:bg-brand-surface-muted/50 transition-colors">
+                          <td className="py-3 px-4 font-bold text-brand-navy-950">{due.user?.name}</td>
+                          <td className="py-3 px-4 text-brand-navy-600">{due.user?.email}</td>
+                          <td className="py-3 px-4 text-brand-navy-800">{due.membershipPlan || '—'}</td>
+                          <td className="py-3 px-4 text-brand-navy-700 font-semibold">{due.unpaidInvoiceCount}</td>
+                          <td className="py-3 px-4 font-bold text-amber-800">
+                            ₹{(due.totalDuePaise / 100).toLocaleString('en-IN')}
+                          </td>
+                          <td className="py-3 px-4 text-right">
+                            <button
+                              onClick={() => {
+                                const matchingInv = invoices.find(
+                                  (inv) => String(inv.userId?._id || inv.userId) === String(due._id) && inv.balanceInPaise > 0
+                                );
+                                if (matchingInv) {
+                                  setPaymentForm({
+                                    invoiceId: matchingInv._id,
+                                    amountRupees: matchingInv.balanceInPaise / 100,
+                                    method: 'CASH',
+                                    referenceNumber: '',
+                                    notes: '',
+                                  });
+                                }
+                                setShowPaymentModal(true);
+                              }}
+                              className="px-2.5 py-1 rounded-lg text-xs font-bold bg-brand-gold-100 text-brand-gold-900 hover:bg-brand-gold-200 transition-colors"
+                            >
+                              Collect Fee
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )
+            ) : (
+              /* SUBTAB 3: ALL INVOICES */
+              invoices.length === 0 ? (
+                <div className="py-12 text-center text-xs text-brand-navy-500 font-semibold">
+                  No billing invoices generated yet.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="border-b border-brand-surface-border text-brand-navy-500 uppercase font-bold tracking-wider">
+                        <th className="py-3 px-4">Invoice #</th>
+                        <th className="py-3 px-4">Student</th>
+                        <th className="py-3 px-4">Cycle Period</th>
+                        <th className="py-3 px-4">Fee Amount</th>
+                        <th className="py-3 px-4">Paid</th>
+                        <th className="py-3 px-4">Balance</th>
+                        <th className="py-3 px-4">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-brand-surface-border">
+                      {invoices.map((inv) => (
+                        <tr key={inv._id} className="hover:bg-brand-surface-muted/50 transition-colors">
+                          <td className="py-3 px-4 font-mono font-bold text-brand-navy-950">{inv.invoiceNumber}</td>
+                          <td className="py-3 px-4 font-medium text-brand-navy-800">
+                            {inv.userId?.name || 'Student'}
+                          </td>
+                          <td className="py-3 px-4 text-brand-navy-600 font-mono text-[11px]">
+                            {new Date(inv.billingPeriodStart).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })}
+                            {' - '}
+                            {new Date(inv.billingPeriodEnd).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' })}
+                          </td>
+                          <td className="py-3 px-4 font-semibold text-brand-navy-900">
+                            ₹{(inv.feeAmountInPaise / 100).toLocaleString('en-IN')}
+                          </td>
+                          <td className="py-3 px-4 text-emerald-700 font-bold">
+                            ₹{(inv.amountPaidInPaise / 100).toLocaleString('en-IN')}
+                          </td>
+                          <td className="py-3 px-4 font-bold text-brand-navy-950">
+                            ₹{(inv.balanceInPaise / 100).toLocaleString('en-IN')}
+                          </td>
+                          <td className="py-3 px-4">
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                                inv.status === 'paid'
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : inv.status === 'partially_paid'
+                                  ? 'bg-amber-100 text-amber-800'
+                                  : 'bg-rose-100 text-rose-800'
+                              }`}
+                            >
+                              {inv.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )
             )}
           </div>
         </div>
@@ -1199,6 +1413,68 @@ export default function AdminDashboardPage() {
                 </div>
               </div>
 
+              {/* Initial Fee Collection at Admission */}
+              <div className="p-3 bg-brand-surface-muted/60 rounded-xl border border-brand-surface-border space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="block font-bold text-brand-navy-900 uppercase tracking-wider text-[11px]">
+                    Initial Fee Collected Now (₹)
+                  </label>
+                  <span className="text-[10px] font-semibold text-brand-navy-500">
+                    Plan Fee: ₹{enrollForm.monthlyFee}
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div>
+                    <input
+                      type="number"
+                      step="1"
+                      min="0"
+                      value={enrollForm.initialPayment}
+                      onChange={(e) => setEnrollForm({ ...enrollForm, initialPayment: e.target.value })}
+                      placeholder="e.g. 1000 or 500 or 0"
+                      className="w-full px-3 py-2 rounded-xl border border-brand-surface-border text-brand-navy-950 font-bold focus:outline-none focus:ring-2 focus:ring-brand-gold-500 bg-white"
+                    />
+                  </div>
+                  <div>
+                    <select
+                      value={enrollForm.paymentMethod}
+                      onChange={(e) => setEnrollForm({ ...enrollForm, paymentMethod: e.target.value })}
+                      className="w-full px-3 py-2 rounded-xl border border-brand-surface-border text-brand-navy-900 font-semibold focus:outline-none focus:ring-2 focus:ring-brand-gold-500 bg-white"
+                    >
+                      <option value="CASH">Cash</option>
+                      <option value="UPI">UPI / QR Code</option>
+                      <option value="BANK_TRANSFER">Bank Transfer / NEFT</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Smart Real-time Calculation Hint */}
+                {Number(enrollForm.initialPayment) > 0 ? (
+                  <div className="text-[11px] font-medium rounded-lg px-2.5 py-1.5 border bg-white shadow-soft-sm">
+                    {Number(enrollForm.initialPayment) === Number(enrollForm.monthlyFee) ? (
+                      <span className="text-emerald-700 font-semibold flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        First month fee (₹{enrollForm.monthlyFee}) will be marked Fully Paid.
+                      </span>
+                    ) : Number(enrollForm.initialPayment) > Number(enrollForm.monthlyFee) ? (
+                      <span className="text-blue-700 font-semibold flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        First month (₹{enrollForm.monthlyFee}) is Paid, and excess ₹{Number(enrollForm.initialPayment) - Number(enrollForm.monthlyFee)} will advance-pay next month!
+                      </span>
+                    ) : (
+                      <span className="text-amber-700 font-semibold flex items-center gap-1">
+                        <AlertTriangle className="w-3.5 h-3.5" />
+                        ₹{enrollForm.initialPayment} collected. Remaining ₹{Number(enrollForm.monthlyFee) - Number(enrollForm.initialPayment)} will be carried forward as pending dues.
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-[10px] text-brand-navy-500">
+                    No payment collected now. ₹{enrollForm.monthlyFee} invoice will be created as unpaid.
+                  </p>
+                )}
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block font-bold text-brand-navy-800 uppercase tracking-wider mb-1">
@@ -1321,7 +1597,15 @@ export default function AdminDashboardPage() {
                 <select
                   required
                   value={paymentForm.invoiceId}
-                  onChange={(e) => setPaymentForm({ ...paymentForm, invoiceId: e.target.value })}
+                  onChange={(e) => {
+                    const invId = e.target.value;
+                    const selected = invoices.find((inv) => String(inv._id) === String(invId));
+                    setPaymentForm({
+                      ...paymentForm,
+                      invoiceId: invId,
+                      amountRupees: selected ? String(selected.balanceInPaise / 100) : paymentForm.amountRupees,
+                    });
+                  }}
                   className="w-full px-3 py-2 rounded-xl border border-brand-surface-border bg-white text-brand-navy-950 font-semibold focus:outline-none"
                 >
                   <option value="">-- Choose Invoice --</option>
@@ -1346,8 +1630,11 @@ export default function AdminDashboardPage() {
                   value={paymentForm.amountRupees}
                   onChange={(e) => setPaymentForm({ ...paymentForm, amountRupees: e.target.value })}
                   placeholder="e.g. 600 or 1000"
-                  className="w-full px-3 py-2 rounded-xl border border-brand-surface-border text-brand-navy-950 focus:outline-none"
+                  className="w-full px-3 py-2 rounded-xl border border-brand-surface-border text-brand-navy-950 focus:outline-none font-bold"
                 />
+                <p className="text-[10px] text-brand-navy-500 mt-1">
+                  💡 Note: You can enter any amount. Excess payment (e.g. ₹1000 for ₹500 fee) automatically pays next month's advance! Partial payment carries forward as pending balance.
+                </p>
               </div>
 
               <div>

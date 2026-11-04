@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import { Membership, User, FeeInvoice, AuditLog } from '../models/index.js';
 import { calculateNextBillingDate, generateInvoiceNumber, calculateDueDate, formatDateKey } from '../utils/billingCalculator.js';
+import { allocatePayment } from '../utils/paymentAllocation.js';
 import { successResponse, errorResponse } from '../utils/response.js';
 import logger from '../utils/logger.js';
 
@@ -111,6 +112,9 @@ export async function createMembership(req, res, next) {
       slotType = 'FULL_DAY',
       shiftTimings = '6:00 AM - 10:00 PM',
       notes = '',
+      initialPaymentInPaise = 0,
+      paymentMethod = 'CASH',
+      referenceNumber = '',
     } = req.body;
 
     if (!monthlyFeeInPaise || monthlyFeeInPaise <= 0) {
@@ -190,11 +194,33 @@ export async function createMembership(req, res, next) {
       notes: 'Initial enrollment billing cycle invoice',
     });
 
+    let allocation = null;
+    const initialPayPaise = parseInt(initialPaymentInPaise, 10);
+    const adminId = (req.user && req.user._id)
+      ? req.user._id
+      : (req.user && req.user.id && mongoose.Types.ObjectId.isValid(req.user.id))
+        ? new mongoose.Types.ObjectId(req.user.id)
+        : new mongoose.Types.ObjectId('507f1f77bcf86cd799439099');
+
+    if (!isNaN(initialPayPaise) && initialPayPaise > 0) {
+      allocation = await allocatePayment({
+        membership,
+        user: targetUser,
+        amountInPaise: initialPayPaise,
+        method: paymentMethod,
+        referenceNumber,
+        notes: notes ? `${notes} (Enrollment Fee Payment)` : 'Enrollment fee payment',
+        adminId,
+        paidAt: parsedJoiningDate,
+        primaryInvoiceId: initialInvoice._id,
+      });
+    }
+
     await AuditLog.create({
       actor: {
-        id: req.user._id,
-        email: req.user.email,
-        role: req.user.role,
+        id: req.user?._id || adminId,
+        email: req.user?.email || 'admin@libraryhub.in',
+        role: req.user?.role || 'admin',
       },
       action: 'MEMBERSHIP_CREATE',
       targetEntity: 'Membership',
@@ -205,9 +231,12 @@ export async function createMembership(req, res, next) {
         userId: targetUser._id,
         planName: membership.planName,
         monthlyFeeInPaise: membership.monthlyFeeInPaise,
+        initialPaymentInPaise: initialPayPaise || 0,
         joiningDate: membership.joiningDate,
       },
-      reason: 'New member enrollment',
+      reason: initialPayPaise > 0
+        ? `New member enrollment with initial payment ₹${initialPayPaise / 100}`
+        : 'New member enrollment',
     });
 
     logger.info(`New membership created for user ${targetUser.email} (ID: ${membership._id})`);
@@ -217,8 +246,9 @@ export async function createMembership(req, res, next) {
       {
         membership,
         initialInvoice,
+        allocation,
       },
-      'Membership created and initial invoice generated successfully',
+      'Membership created and enrolled successfully',
       201
     );
   } catch (err) {
