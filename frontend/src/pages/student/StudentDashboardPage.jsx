@@ -183,6 +183,16 @@ export default function StudentDashboardPage() {
                     {membership ? 'Membership Inactive' : 'Not Enrolled'}
                   </span>
                 )}
+                {todayAtt?.inTime ? (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-300 shrink-0">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    ✓ Present Today
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-gray-100 text-gray-700 border border-gray-300 shrink-0">
+                    Attendance Pending
+                  </span>
+                )}
               </div>
               <p className="text-xs sm:text-sm text-brand-navy-600 mt-1 break-words">
                 {user?.email} • {user?.targetExam ? `Targeting: ${user.targetExam}` : 'Library Hub Nawalpur'}
@@ -294,9 +304,19 @@ export default function StudentDashboardPage() {
                   </span>
                 </div>
                 <div className="col-span-2 sm:col-span-1 p-3 bg-white rounded-xl shadow-soft-sm border border-brand-surface-border">
-                  <span className="block text-[11px] font-bold text-brand-navy-500 uppercase">Status</span>
-                  <span className={`block text-xs sm:text-sm font-bold mt-1.5 ${todayAtt?.status === 'COMPLETED' ? 'text-emerald-700' : (todayAtt?.status === 'IN' ? 'text-blue-700' : 'text-brand-navy-500')}`}>
-                    {todayAtt?.status === 'COMPLETED' ? 'Completed Session' : (todayAtt?.status === 'IN' ? 'Currently Checked IN' : 'Not Marked Yet')}
+                  <span className="block text-[11px] font-bold text-brand-navy-500 uppercase">Today's Status</span>
+                  <span className={`block text-xs sm:text-sm font-bold mt-1.5 ${
+                    todayAtt?.inTime && !todayAtt?.outTime
+                      ? 'text-emerald-700 font-extrabold'
+                      : todayAtt?.outTime
+                      ? 'text-teal-700 font-extrabold'
+                      : 'text-amber-700 font-bold'
+                  }`}>
+                    {todayAtt?.inTime && !todayAtt?.outTime
+                      ? '✓ PRESENT (Inside Library)'
+                      : todayAtt?.outTime
+                      ? '✓ PRESENT (Session Completed)'
+                      : 'ABSENT / NOT MARKED YET'}
                   </span>
                 </div>
               </div>

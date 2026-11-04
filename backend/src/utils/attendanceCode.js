@@ -8,7 +8,13 @@ import logger from '../utils/logger.js';
  * Get current date key in Asia/Kolkata timezone (YYYY-MM-DD)
  */
 export function getKolkataDateKey(date = new Date()) {
-  return formatDateKey(date);
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  return formatter.format(date);
 }
 
 /**

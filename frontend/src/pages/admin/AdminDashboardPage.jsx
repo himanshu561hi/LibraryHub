@@ -49,6 +49,7 @@ export default function AdminDashboardPage() {
 
   const [liveAttendance, setLiveAttendance] = useState(null);
   const [loadingAttendance, setLoadingAttendance] = useState(false);
+  const [attendanceFilter, setAttendanceFilter] = useState('all'); // 'all' | 'present' | 'inside' | 'absent'
 
   const [invoices, setInvoices] = useState([]);
   const [duesList, setDuesList] = useState([]);
@@ -739,7 +740,7 @@ export default function AdminDashboardPage() {
       {/* TAB 3: LIVE ATTENDANCE */}
       {activeTab === 'attendance' && (
         <div className="bg-white rounded-2xl p-6 shadow-soft border border-brand-surface-border">
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
             <div>
               <h2 className="text-lg font-bold text-brand-navy-950">Today's Live Attendance Monitor</h2>
               <p className="text-xs text-brand-navy-500">
@@ -748,10 +749,58 @@ export default function AdminDashboardPage() {
             </div>
             <button
               onClick={fetchLiveAttendance}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-brand-surface-muted hover:bg-brand-surface-border text-brand-navy-800 transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-brand-surface-muted hover:bg-brand-surface-border text-brand-navy-800 transition-colors w-fit"
             >
               <RefreshCw className="w-3.5 h-3.5" />
               <span>Refresh</span>
+            </button>
+          </div>
+
+          {/* Quick Filter Badges */}
+          <div className="flex items-center gap-2 border-b border-brand-surface-border pb-3 mb-5 overflow-x-auto">
+            <button
+              type="button"
+              onClick={() => setAttendanceFilter('all')}
+              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                attendanceFilter === 'all'
+                  ? 'bg-brand-navy-950 text-white'
+                  : 'text-brand-navy-600 hover:bg-brand-surface-muted'
+              }`}
+            >
+              All Students ({liveAttendance?.allRecords?.length || 0})
+            </button>
+            <button
+              type="button"
+              onClick={() => setAttendanceFilter('present')}
+              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                attendanceFilter === 'present'
+                  ? 'bg-emerald-600 text-white'
+                  : 'text-emerald-800 bg-emerald-50 hover:bg-emerald-100'
+              }`}
+            >
+              ✓ Present Today ({liveAttendance?.totalMarkedToday || 0})
+            </button>
+            <button
+              type="button"
+              onClick={() => setAttendanceFilter('inside')}
+              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                attendanceFilter === 'inside'
+                  ? 'bg-blue-600 text-white'
+                  : 'text-blue-800 bg-blue-50 hover:bg-blue-100'
+              }`}
+            >
+              Inside Library Now ({liveAttendance?.currentlyPresentCount || 0})
+            </button>
+            <button
+              type="button"
+              onClick={() => setAttendanceFilter('absent')}
+              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                attendanceFilter === 'absent'
+                  ? 'bg-rose-600 text-white'
+                  : 'text-rose-800 bg-rose-50 hover:bg-rose-100'
+              }`}
+            >
+              Absent / Not Marked ({liveAttendance?.absentCount || 0})
             </button>
           </div>
 
@@ -762,7 +811,7 @@ export default function AdminDashboardPage() {
             </div>
           ) : !liveAttendance?.allRecords?.length ? (
             <div className="py-12 text-center text-xs text-brand-navy-500">
-              No attendance marked yet today.
+              No students or attendance records found for today.
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -770,32 +819,59 @@ export default function AdminDashboardPage() {
                 <thead>
                   <tr className="border-b border-brand-surface-border text-brand-navy-500 uppercase font-bold tracking-wider">
                     <th className="py-3 px-4">Student</th>
+                    <th className="py-3 px-4">Plan / Shift</th>
                     <th className="py-3 px-4">Check IN</th>
                     <th className="py-3 px-4">Check OUT</th>
                     <th className="py-3 px-4">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-brand-surface-border">
-                  {liveAttendance.allRecords.map((att) => (
-                    <tr key={att._id} className="hover:bg-brand-surface-muted/50 transition-colors">
-                      <td className="py-3 px-4 font-bold text-brand-navy-950">
-                        {att.userId?.name || 'Unknown Student'}
-                      </td>
-                      <td className="py-3 px-4 text-brand-navy-800">
-                        {att.inTime ? new Date(att.inTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '—'}
-                      </td>
-                      <td className="py-3 px-4 text-brand-navy-800">
-                        {att.outTime ? new Date(att.outTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '—'}
-                      </td>
-                      <td className="py-3 px-4">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                          att.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'
-                        }`}>
-                          {att.status === 'COMPLETED' ? 'Finished Session' : 'Currently Inside'}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
+                  {liveAttendance.allRecords
+                    .filter((att) => {
+                      if (attendanceFilter === 'present') return att.isPresent;
+                      if (attendanceFilter === 'inside') return att.inTime && !att.outTime;
+                      if (attendanceFilter === 'absent') return !att.isPresent;
+                      return true;
+                    })
+                    .map((att) => (
+                      <tr key={att._id} className="hover:bg-brand-surface-muted/50 transition-colors">
+                        <td className="py-3 px-4">
+                          <span className="font-bold text-brand-navy-950 block">
+                            {att.userId?.name || 'Unknown Student'}
+                          </span>
+                          <span className="text-[11px] text-brand-navy-500">{att.userId?.email}</span>
+                        </td>
+                        <td className="py-3 px-4 text-brand-navy-700">
+                          {att.planName || 'Full Day Pass'}
+                        </td>
+                        <td className="py-3 px-4 font-mono text-brand-navy-800">
+                          {att.inTime
+                            ? new Date(att.inTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
+                            : '—'}
+                        </td>
+                        <td className="py-3 px-4 font-mono text-brand-navy-800">
+                          {att.outTime
+                            ? new Date(att.outTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
+                            : '—'}
+                        </td>
+                        <td className="py-3 px-4">
+                          {att.inTime && !att.outTime ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
+                              PRESENT (Inside Now)
+                            </span>
+                          ) : att.outTime ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-teal-100 text-teal-800 border border-teal-300">
+                              ✓ PRESENT (Completed)
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                              ✗ ABSENT / NOT MARKED
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
                 </tbody>
               </table>
             </div>

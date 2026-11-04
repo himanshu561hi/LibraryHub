@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import { User, Membership, Attendance, DailyAttendanceCode, FeeInvoice, Payment } from '../models/index.js';
 import { successResponse, errorResponse } from '../utils/response.js';
 import { formatDateKey } from '../utils/billingCalculator.js';
+import { getKolkataDateKey } from '../utils/attendanceCode.js';
 import crypto from 'crypto';
 
 /**
@@ -10,7 +11,7 @@ import crypto from 'crypto';
 export const getStudentDashboard = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    const todayKey = formatDateKey(new Date());
+    const todayKey = getKolkataDateKey(new Date());
 
     if (mongoose.connection.readyState !== 1) {
       return successResponse(
@@ -101,7 +102,7 @@ export const getStudentDashboard = async (req, res, next) => {
  */
 export const getAdminDashboardSummary = async (req, res, next) => {
   try {
-    const todayKey = formatDateKey(new Date());
+    const todayKey = getKolkataDateKey(new Date());
 
     if (mongoose.connection.readyState !== 1) {
       return successResponse(

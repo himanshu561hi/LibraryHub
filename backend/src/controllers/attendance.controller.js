@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { Attendance, User, AuditLog, DailyAttendanceCode } from '../models/index.js';
+import { Attendance, User, Membership, AuditLog, DailyAttendanceCode } from '../models/index.js';
 import { getKolkataDateKey, verifyDailyCode } from '../utils/attendanceCode.js';
 import { sendAttendanceInEmail, sendAttendanceOutEmail } from '../services/emailService.js';
 import { successResponse, errorResponse } from '../utils/response.js';
@@ -256,31 +256,105 @@ export async function getAdminLiveAttendance(req, res, next) {
     if (mongoose.connection.readyState !== 1 && process.env.NODE_ENV !== 'test') {
       return successResponse(res, {
         date: dateKey,
+        totalActiveMembers: 0,
         totalMarkedToday: 0,
         currentlyPresentCount: 0,
         completedCount: 0,
+        absentCount: 0,
         currentlyPresent: [],
         completedSessions: [],
         allRecords: [],
       });
     }
 
-    const records = await Attendance.find({ date: dateKey })
-      .populate('userId', 'name email phone picture isMember')
-      .sort({ inTime: -1 })
-      .lean();
+    const [activeMemberships, records] = await Promise.all([
+      Membership.find({ status: 'active' })
+        .populate('userId', 'name email phone picture isMember')
+        .lean(),
+      Attendance.find({ date: dateKey })
+        .populate('userId', 'name email phone picture isMember')
+        .sort({ inTime: -1 })
+        .lean(),
+    ]);
+
+    const attendanceMap = new Map();
+    records.forEach((r) => {
+      const uId = r.userId?._id ? String(r.userId._id) : String(r.userId);
+      attendanceMap.set(uId, r);
+    });
+
+    const roster = [];
+    const processedUserIds = new Set();
+
+    activeMemberships.forEach((m) => {
+      if (!m.userId) return;
+      const uId = String(m.userId._id || m.userId);
+      processedUserIds.add(uId);
+      const att = attendanceMap.get(uId);
+
+      if (att) {
+        roster.push({
+          _id: att._id,
+          userId: m.userId,
+          membershipId: m._id,
+          planName: m.planName,
+          shiftTimings: m.shiftTimings,
+          inTime: att.inTime,
+          outTime: att.outTime,
+          durationMinutes: att.durationMinutes,
+          isPresent: true,
+          status: att.status,
+          date: dateKey,
+        });
+      } else {
+        roster.push({
+          _id: `absent_${m._id}`,
+          userId: m.userId,
+          membershipId: m._id,
+          planName: m.planName,
+          shiftTimings: m.shiftTimings,
+          inTime: null,
+          outTime: null,
+          durationMinutes: 0,
+          isPresent: false,
+          status: 'ABSENT',
+          date: dateKey,
+        });
+      }
+    });
+
+    records.forEach((r) => {
+      const uId = r.userId?._id ? String(r.userId._id) : String(r.userId);
+      if (!processedUserIds.has(uId)) {
+        processedUserIds.add(uId);
+        roster.push({
+          _id: r._id,
+          userId: r.userId,
+          inTime: r.inTime,
+          outTime: r.outTime,
+          durationMinutes: r.durationMinutes,
+          isPresent: true,
+          status: r.status,
+          date: dateKey,
+        });
+      }
+    });
 
     const currentlyPresent = records.filter((r) => r.inTime && !r.outTime);
     const completedSessions = records.filter((r) => r.outTime);
+    const presentCount = records.length;
+    const absentCount = Math.max(0, activeMemberships.length - presentCount);
 
     return successResponse(res, {
       date: dateKey,
-      totalMarkedToday: records.length,
+      totalActiveMembers: activeMemberships.length,
+      totalMarkedToday: presentCount,
       currentlyPresentCount: currentlyPresent.length,
       completedCount: completedSessions.length,
+      absentCount,
       currentlyPresent,
       completedSessions,
-      allRecords: records,
+      allRecords: roster,
     });
   } catch (err) {
     logger.error(`Error in getAdminLiveAttendance: ${err.message}`, { error: err });
