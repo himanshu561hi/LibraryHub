@@ -5,6 +5,7 @@ import {
   createMembership,
   deactivateMembership,
   reactivateMembership,
+  updateMembership,
   updateMonthlyFee,
 } from '../controllers/membership.controller.js';
 import { authenticateToken, requireRole } from '../middlewares/auth.js';
@@ -28,6 +29,10 @@ router.patch('/:id/deactivate', requireRole('admin', 'super_admin'), deactivateM
 
 // Reactivation (Admin only)
 router.patch('/:id/reactivate', requireRole('admin', 'super_admin'), reactivateMembership);
+
+// Update membership plan, shift timings, and/or monthly fee (Admin only)
+router.put('/:id', requireRole('admin', 'super_admin'), updateMembership);
+router.patch('/:id', requireRole('admin', 'super_admin'), updateMembership);
 
 // Update future fee (Admin only)
 router.patch('/:id/fee', requireRole('admin', 'super_admin'), updateMonthlyFee);

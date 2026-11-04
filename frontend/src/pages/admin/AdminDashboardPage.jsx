@@ -43,18 +43,25 @@ export default function AdminDashboardPage() {
 
   // Tab Data States
   const [memberships, setMemberships] = useState([]);
-  const [memberFilter, setMemberFilter] = useState('');
+  const [memberFilter, setMemberFilter] = useState(''); // status: '' | 'active' | 'inactive'
   const [memberSearch, setMemberSearch] = useState('');
+  const [memberPlanFilter, setMemberPlanFilter] = useState(''); // '' | 'half-day-morning' | 'full-day-pass' | 'half-day-evening'
   const [loadingMembers, setLoadingMembers] = useState(false);
 
   const [liveAttendance, setLiveAttendance] = useState(null);
   const [loadingAttendance, setLoadingAttendance] = useState(false);
   const [attendanceFilter, setAttendanceFilter] = useState('all'); // 'all' | 'present' | 'inside' | 'absent'
+  const [attendanceSearch, setAttendanceSearch] = useState('');
+  const [attendanceDate, setAttendanceDate] = useState(new Date().toISOString().split('T')[0]);
+  const [attendanceShiftFilter, setAttendanceShiftFilter] = useState('');
 
   const [invoices, setInvoices] = useState([]);
   const [duesList, setDuesList] = useState([]);
   const [paymentsList, setPaymentsList] = useState([]);
   const [billingSubTab, setBillingSubTab] = useState('payments'); // 'payments' | 'dues' | 'invoices'
+  const [billingSearch, setBillingSearch] = useState('');
+  const [billingMethodFilter, setBillingMethodFilter] = useState(''); // '' | 'CASH' | 'UPI' | 'BANK_TRANSFER'
+  const [billingInvoiceStatusFilter, setBillingInvoiceStatusFilter] = useState(''); // '' | 'paid' | 'partially_paid' | 'unpaid'
   const [loadingBilling, setLoadingBilling] = useState(false);
 
   const [campaigns, setCampaigns] = useState([]);
@@ -85,6 +92,23 @@ export default function AdminDashboardPage() {
   const [showDeactivateModal, setShowDeactivateModal] = useState(false);
   const [selectedMembership, setSelectedMembership] = useState(null);
   const [deactivateReason, setDeactivateReason] = useState('');
+
+  // Edit / Update Membership State
+  const [showEditMemberModal, setShowEditMemberModal] = useState(false);
+  const [editingMembership, setEditingMembership] = useState(null);
+  const [editForm, setEditForm] = useState({
+    planType: 'full_day',
+    planId: 'full-day-pass',
+    planName: 'Full Day Pass (Study Freedom)',
+    slotType: 'FULL_DAY',
+    shiftTimings: '6:00 AM - 10:00 PM',
+    monthlyFee: 1000,
+    updateCurrentUnpaidInvoice: true,
+    reason: '',
+  });
+  const [submittingEdit, setSubmittingEdit] = useState(false);
+  const [editError, setEditError] = useState('');
+  const [reactivatingId, setReactivatingId] = useState(null);
 
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentForm, setPaymentForm] = useState({
@@ -147,10 +171,13 @@ export default function AdminDashboardPage() {
   };
 
   // Load Live Attendance Tab
-  const fetchLiveAttendance = async () => {
+  const fetchLiveAttendance = async (dateOverride) => {
     try {
       setLoadingAttendance(true);
-      const res = await client.get(API_ENDPOINTS.ATTENDANCE.ADMIN_LIVE);
+      const targetDate = dateOverride || attendanceDate;
+      const res = await client.get(API_ENDPOINTS.ATTENDANCE.ADMIN_LIVE, {
+        params: { date: targetDate },
+      });
       if (res && res.success) {
         setLiveAttendance(res.data);
       }
@@ -241,11 +268,131 @@ export default function AdminDashboardPage() {
         setShowDeactivateModal(false);
         setSelectedMembership(null);
         setDeactivateReason('');
-        fetchMemberships();
-        fetchSummaryAndCode();
+        await Promise.all([fetchMemberships(), fetchSummaryAndCode(), fetchBilling()]);
       }
     } catch (err) {
       alert(`Deactivation failed: ${err.message}`);
+    }
+  };
+
+  // 1-Click Reactivate Membership for Admin
+  const handleReactivate = async (membershipId, studentName) => {
+    try {
+      setReactivatingId(membershipId);
+      const res = await client.patch(API_ENDPOINTS.MEMBERSHIPS.REACTIVATE(membershipId), {
+        reason: '1-click reactivation by admin',
+      });
+      if (res && res.success) {
+        await Promise.all([fetchMemberships(), fetchSummaryAndCode(), fetchBilling()]);
+        alert(`Successfully reactivated membership for ${studentName || 'student'}!`);
+      }
+    } catch (err) {
+      alert(`Reactivation failed: ${err.message || 'Error occurred'}`);
+    } finally {
+      setReactivatingId(null);
+    }
+  };
+
+  // Open Edit Membership Modal
+  const handleOpenEditModal = (m) => {
+    setEditingMembership(m);
+    setEditError('');
+    let pType = 'full_day';
+    if (m.planId?.includes('morning')) pType = 'morning';
+    else if (m.planId?.includes('evening')) pType = 'evening';
+    else if (m.planId === 'custom') pType = 'custom';
+
+    setEditForm({
+      planType: pType,
+      planId: m.planId || 'full-day-pass',
+      planName: m.planName || 'Full Day Pass',
+      slotType: m.slotType || 'FULL_DAY',
+      shiftTimings: m.shiftTimings || '6:00 AM - 10:00 PM',
+      monthlyFee: (m.monthlyFeeInPaise || 0) / 100,
+      updateCurrentUnpaidInvoice: true,
+      reason: '',
+    });
+    setShowEditMemberModal(true);
+  };
+
+  // Handle Plan Type selection inside Edit Modal
+  const handleEditPlanSelect = (type) => {
+    const planMeta = {
+      morning: {
+        planId: 'half-day-morning',
+        planName: 'Morning Shift (Early Riser)',
+        slotType: 'MORNING',
+        shiftTimings: '6:00 AM - 2:00 PM',
+        fee: 600,
+      },
+      full_day: {
+        planId: 'full-day-pass',
+        planName: 'Full Day Pass (Study Freedom)',
+        slotType: 'FULL_DAY',
+        shiftTimings: '6:00 AM - 10:00 PM',
+        fee: 1000,
+      },
+      evening: {
+        planId: 'half-day-evening',
+        planName: 'Evening Shift (Night Owl Focus)',
+        slotType: 'EVENING',
+        shiftTimings: '2:00 PM - 10:00 PM',
+        fee: 600,
+      },
+    }[type];
+
+    if (planMeta) {
+      setEditForm((prev) => ({
+        ...prev,
+        planType: type,
+        planId: planMeta.planId,
+        planName: planMeta.planName,
+        slotType: planMeta.slotType,
+        shiftTimings: planMeta.shiftTimings,
+        monthlyFee: planMeta.fee,
+      }));
+    } else {
+      setEditForm((prev) => ({
+        ...prev,
+        planType: 'custom',
+        planId: 'custom',
+      }));
+    }
+  };
+
+  // Save Membership & Shift Updates
+  const handleSaveEditMembership = async (e) => {
+    e.preventDefault();
+    if (!editingMembership) return;
+    setSubmittingEdit(true);
+    setEditError('');
+
+    try {
+      const feeInPaise = Math.round(Number(editForm.monthlyFee) * 100);
+      if (isNaN(feeInPaise) || feeInPaise < 0) {
+        throw new Error('Please enter a valid monthly fee in Rupees');
+      }
+
+      const res = await client.put(API_ENDPOINTS.MEMBERSHIPS.UPDATE(editingMembership._id), {
+        planId: editForm.planId,
+        planName: editForm.planName,
+        slotType: editForm.slotType,
+        shiftTimings: editForm.shiftTimings,
+        monthlyFeeInPaise: feeInPaise,
+        updateCurrentUnpaidInvoice: editForm.updateCurrentUnpaidInvoice,
+        reason: editForm.reason.trim() || 'Shift and/or monthly fee updated by admin',
+      });
+
+      if (res && res.success) {
+        setShowEditMemberModal(false);
+        setEditingMembership(null);
+        await Promise.all([fetchMemberships(), fetchSummaryAndCode(), fetchBilling()]);
+        alert('Membership plan, shift, and fee updated successfully!');
+      }
+    } catch (err) {
+      setEditError(err.message || 'Failed to update membership');
+    } finally {
+      setSubmittingEdit(false);
     }
   };
 
@@ -431,6 +578,56 @@ export default function AdminDashboardPage() {
   const handleExportCsv = (type) => {
     window.open(`${API_ENDPOINTS.ADMIN.EXPORT_CSV}?type=${type}`, '_blank');
   };
+
+  // Filtered Billing Lists for Tab 4
+  const filteredPayments = paymentsList.filter((p) => {
+    if (billingMethodFilter && p.method?.toUpperCase() !== billingMethodFilter) return false;
+    if (billingSearch.trim()) {
+      const q = billingSearch.toLowerCase().trim();
+      const studentName = (p.userId?.name || '').toLowerCase();
+      const studentEmail = (p.userId?.email || '').toLowerCase();
+      const paymentNum = (p.paymentNumber || '').toLowerCase();
+      const invoiceNum = (p.invoiceId?.invoiceNumber || '').toLowerCase();
+      const refNum = (p.referenceNumber || '').toLowerCase();
+      if (
+        !studentName.includes(q) &&
+        !studentEmail.includes(q) &&
+        !paymentNum.includes(q) &&
+        !invoiceNum.includes(q) &&
+        !refNum.includes(q)
+      ) {
+        return false;
+      }
+    }
+    return true;
+  });
+
+  const filteredDues = duesList.filter((due) => {
+    if (billingSearch.trim()) {
+      const q = billingSearch.toLowerCase().trim();
+      const studentName = (due.user?.name || '').toLowerCase();
+      const studentEmail = (due.user?.email || '').toLowerCase();
+      const planName = (due.membershipPlan || '').toLowerCase();
+      if (!studentName.includes(q) && !studentEmail.includes(q) && !planName.includes(q)) {
+        return false;
+      }
+    }
+    return true;
+  });
+
+  const filteredInvoices = invoices.filter((inv) => {
+    if (billingInvoiceStatusFilter && inv.status !== billingInvoiceStatusFilter) return false;
+    if (billingSearch.trim()) {
+      const q = billingSearch.toLowerCase().trim();
+      const studentName = (inv.userId?.name || '').toLowerCase();
+      const studentEmail = (inv.userId?.email || '').toLowerCase();
+      const invoiceNum = (inv.invoiceNumber || '').toLowerCase();
+      if (!studentName.includes(q) && !studentEmail.includes(q) && !invoiceNum.includes(q)) {
+        return false;
+      }
+    }
+    return true;
+  });
 
   return (
     <div className="max-w-7xl mx-auto px-3.5 sm:px-6 lg:px-8 py-5 sm:py-8 w-full">
@@ -637,35 +834,85 @@ export default function AdminDashboardPage() {
       {/* TAB 2: STUDENTS & MEMBERSHIPS */}
       {activeTab === 'memberships' && (
         <div className="bg-white rounded-2xl p-6 shadow-soft border border-brand-surface-border">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-5">
             <div>
               <h2 className="text-lg font-bold text-brand-navy-950">Student Membership Management</h2>
               <p className="text-xs text-brand-navy-500">
-                Manage active and former members. Deactivation stops future billing immediately.
+                Manage active and former members. Search, filter by shift or status, and enroll new students.
               </p>
             </div>
 
-            <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowCreateMemberModal(true)}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-brand-navy-950 hover:bg-brand-navy-900 text-white transition-colors shrink-0 shadow-soft-sm"
+            >
+              <Plus className="w-4 h-4 text-brand-gold-400" />
+              <span>Enroll Member</span>
+            </button>
+          </div>
+
+          {/* Interactive Filter & Search Bar */}
+          <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 p-3 rounded-xl bg-brand-surface-muted/60 border border-brand-surface-border mb-6">
+            <div className="sm:col-span-5 relative">
+              <Search className="w-4 h-4 text-brand-navy-400 absolute left-3 top-2.5" />
+              <input
+                type="text"
+                value={memberSearch}
+                onChange={(e) => setMemberSearch(e.target.value)}
+                placeholder="Search by student name, email, or phone..."
+                className="w-full pl-9 pr-3 py-1.5 text-xs rounded-lg border border-brand-surface-border bg-white text-brand-navy-950 focus:outline-none focus:ring-2 focus:ring-brand-gold-500 font-medium"
+              />
+              {memberSearch && (
+                <button
+                  type="button"
+                  onClick={() => setMemberSearch('')}
+                  className="absolute right-2.5 top-2 text-brand-navy-400 hover:text-brand-navy-700"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            <div className="sm:col-span-3">
               <select
                 value={memberFilter}
-                onChange={(e) => {
-                  setMemberFilter(e.target.value);
-                  fetchMemberships();
-                }}
-                className="px-3 py-2 text-xs rounded-xl border border-brand-surface-border bg-white text-brand-navy-900 font-semibold focus:outline-none"
+                onChange={(e) => setMemberFilter(e.target.value)}
+                className="w-full px-3 py-1.5 text-xs rounded-lg border border-brand-surface-border bg-white text-brand-navy-900 font-semibold focus:outline-none focus:ring-2 focus:ring-brand-gold-500"
               >
-                <option value="">All Statuses</option>
-                <option value="active">Active Only</option>
-                <option value="inactive">Inactive Only</option>
+                <option value="">All Statuses (Active & Inactive)</option>
+                <option value="active">Active Members Only</option>
+                <option value="inactive">Inactive / Former Only</option>
               </select>
+            </div>
 
-              <button
-                onClick={() => setShowCreateMemberModal(true)}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-brand-navy-950 hover:bg-brand-navy-900 text-white transition-colors"
+            <div className="sm:col-span-3">
+              <select
+                value={memberPlanFilter}
+                onChange={(e) => setMemberPlanFilter(e.target.value)}
+                className="w-full px-3 py-1.5 text-xs rounded-lg border border-brand-surface-border bg-white text-brand-navy-900 font-semibold focus:outline-none focus:ring-2 focus:ring-brand-gold-500"
               >
-                <Plus className="w-4 h-4 text-brand-gold-400" />
-                <span>Enroll Member</span>
-              </button>
+                <option value="">All Shifts & Plans</option>
+                <option value="half-day-morning">Morning Shift (6 AM - 2 PM)</option>
+                <option value="full-day-pass">Full Day Pass (6 AM - 10 PM)</option>
+                <option value="half-day-evening">Evening Shift (2 PM - 10 PM)</option>
+              </select>
+            </div>
+
+            <div className="sm:col-span-1 flex items-center justify-end">
+              {(memberSearch || memberFilter || memberPlanFilter) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMemberSearch('');
+                    setMemberFilter('');
+                    setMemberPlanFilter('');
+                  }}
+                  className="px-2 py-1.5 rounded-lg text-xs font-semibold text-rose-700 hover:bg-rose-50 border border-rose-200 transition-colors"
+                  title="Reset Filters"
+                >
+                  Reset
+                </button>
+              )}
             </div>
           </div>
 
@@ -676,7 +923,7 @@ export default function AdminDashboardPage() {
             </div>
           ) : memberships.length === 0 ? (
             <div className="py-12 text-center text-xs text-brand-navy-500">
-              No membership records found matching filter.
+              No membership records enrolled yet.
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -684,7 +931,7 @@ export default function AdminDashboardPage() {
                 <thead>
                   <tr className="border-b border-brand-surface-border text-brand-navy-500 uppercase font-bold tracking-wider">
                     <th className="py-3 px-4">Student</th>
-                    <th className="py-3 px-4">Plan</th>
+                    <th className="py-3 px-4">Plan / Shift</th>
                     <th className="py-3 px-4">Joining Date</th>
                     <th className="py-3 px-4">Monthly Fee</th>
                     <th className="py-3 px-4">Status</th>
@@ -692,44 +939,85 @@ export default function AdminDashboardPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-brand-surface-border">
-                  {memberships.map((m) => (
-                    <tr key={m._id} className="hover:bg-brand-surface-muted/50 transition-colors">
-                      <td className="py-3 px-4">
-                        <span className="font-bold text-brand-navy-950 block">{m.userId?.name || 'Unknown'}</span>
-                        <span className="text-[11px] text-brand-navy-500">{m.userId?.email}</span>
-                      </td>
-                      <td className="py-3 px-4 font-semibold text-brand-navy-800">{m.planName}</td>
-                      <td className="py-3 px-4 text-brand-navy-700">
-                        {new Date(m.joiningDate).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' })}
-                      </td>
-                      <td className="py-3 px-4 font-bold text-brand-navy-950">
-                        ₹{(m.monthlyFeeInPaise / 100).toLocaleString('en-IN')}
-                      </td>
-                      <td className="py-3 px-4">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                          m.status === 'active' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
-                        }`}>
-                          {m.status}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-right">
-                        {m.status === 'active' ? (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSelectedMembership(m);
-                              setShowDeactivateModal(true);
-                            }}
-                            className="px-2.5 py-1 rounded text-[11px] font-bold bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 transition-colors"
-                          >
-                            Deactivate
-                          </button>
-                        ) : (
-                          <span className="text-[11px] text-brand-navy-400 italic">Inactive</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                  {memberships
+                    .filter((m) => {
+                      if (memberFilter && m.status !== memberFilter) return false;
+                      if (memberPlanFilter && m.planId !== memberPlanFilter) return false;
+                      if (memberSearch.trim()) {
+                        const q = memberSearch.toLowerCase().trim();
+                        const nameMatch = (m.userId?.name || '').toLowerCase().includes(q);
+                        const emailMatch = (m.userId?.email || '').toLowerCase().includes(q);
+                        const phoneMatch = (m.userId?.phone || '').includes(q);
+                        if (!nameMatch && !emailMatch && !phoneMatch) return false;
+                      }
+                      return true;
+                    })
+                    .map((m) => (
+                      <tr key={m._id} className="hover:bg-brand-surface-muted/50 transition-colors">
+                        <td className="py-3 px-4">
+                          <span className="font-bold text-brand-navy-950 block">{m.userId?.name || 'Unknown'}</span>
+                          <span className="text-[11px] text-brand-navy-500">{m.userId?.email}</span>
+                          {m.userId?.phone && <span className="text-[10px] text-brand-navy-400 block font-mono">{m.userId.phone}</span>}
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className="font-semibold text-brand-navy-900 block">{m.planName}</span>
+                          <span className="text-[10px] text-brand-navy-500">{m.shiftTimings}</span>
+                        </td>
+                        <td className="py-3 px-4 text-brand-navy-700">
+                          {new Date(m.joiningDate).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </td>
+                        <td className="py-3 px-4 font-bold text-brand-navy-950">
+                          ₹{(m.monthlyFeeInPaise / 100).toLocaleString('en-IN')}
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                            m.status === 'active' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
+                          }`}>
+                            {m.status}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditModal(m)}
+                              className="px-2.5 py-1 rounded text-[11px] font-bold bg-brand-surface-muted hover:bg-brand-surface-border text-brand-navy-800 transition-colors"
+                              title="Update shift timings or monthly fee"
+                            >
+                              Edit
+                            </button>
+
+                            {m.status === 'active' ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedMembership(m);
+                                  setShowDeactivateModal(true);
+                                }}
+                                className="px-2.5 py-1 rounded text-[11px] font-bold bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 transition-colors"
+                              >
+                                Deactivate
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                disabled={reactivatingId === m._id}
+                                onClick={() => handleReactivate(m._id, m.userId?.name)}
+                                className="px-2.5 py-1 rounded text-[11px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition-colors shadow-soft-sm disabled:opacity-60 flex items-center gap-1"
+                                title="1-click reactivate membership"
+                              >
+                                {reactivatingId === m._id ? (
+                                  <Loader2 className="w-3 h-3 animate-spin" />
+                                ) : (
+                                  <CheckCircle2 className="w-3 h-3" />
+                                )}
+                                <span>Activate</span>
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
                 </tbody>
               </table>
             </div>
@@ -893,6 +1181,15 @@ export default function AdminDashboardPage() {
               </div>
               <div className="flex items-center gap-2">
                 <button
+                  type="button"
+                  onClick={fetchBilling}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-brand-surface-muted hover:bg-brand-surface-border text-brand-navy-800 transition-colors"
+                  title="Refresh records"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>Refresh</span>
+                </button>
+                <button
                   onClick={() => setShowPaymentModal(true)}
                   className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition-colors shadow-soft-sm"
                 >
@@ -939,6 +1236,87 @@ export default function AdminDashboardPage() {
               </button>
             </div>
 
+            {/* Interactive Filter & Search Bar for Fees */}
+            <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 p-3 rounded-xl bg-brand-surface-muted/60 border border-brand-surface-border mb-6">
+              <div className="sm:col-span-6 relative">
+                <Search className="w-4 h-4 text-brand-navy-400 absolute left-3 top-2.5" />
+                <input
+                  type="text"
+                  value={billingSearch}
+                  onChange={(e) => setBillingSearch(e.target.value)}
+                  placeholder={
+                    billingSubTab === 'payments'
+                      ? 'Search student name, email, receipt #, invoice #...'
+                      : billingSubTab === 'dues'
+                      ? 'Search active student name, email, or plan...'
+                      : 'Search student name, email, or invoice #...'
+                  }
+                  className="w-full pl-9 pr-8 py-1.5 text-xs rounded-lg border border-brand-surface-border bg-white text-brand-navy-950 focus:outline-none focus:ring-2 focus:ring-brand-gold-500 font-medium"
+                />
+                {billingSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setBillingSearch('')}
+                    className="absolute right-2.5 top-2 text-brand-navy-400 hover:text-brand-navy-700"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {billingSubTab === 'payments' && (
+                <div className="sm:col-span-4">
+                  <select
+                    value={billingMethodFilter}
+                    onChange={(e) => setBillingMethodFilter(e.target.value)}
+                    className="w-full py-1.5 px-2.5 text-xs rounded-lg border border-brand-surface-border bg-white text-brand-navy-950 font-medium focus:outline-none focus:ring-2 focus:ring-brand-gold-500"
+                  >
+                    <option value="">All Payment Modes</option>
+                    <option value="CASH">Cash Payments</option>
+                    <option value="UPI">UPI Payments</option>
+                    <option value="BANK_TRANSFER">Bank Transfers</option>
+                  </select>
+                </div>
+              )}
+
+              {billingSubTab === 'invoices' && (
+                <div className="sm:col-span-4">
+                  <select
+                    value={billingInvoiceStatusFilter}
+                    onChange={(e) => setBillingInvoiceStatusFilter(e.target.value)}
+                    className="w-full py-1.5 px-2.5 text-xs rounded-lg border border-brand-surface-border bg-white text-brand-navy-950 font-medium focus:outline-none focus:ring-2 focus:ring-brand-gold-500"
+                  >
+                    <option value="">All Invoices (Paid & Unpaid)</option>
+                    <option value="paid">Fully Settled (Paid)</option>
+                    <option value="partially_paid">Partially Paid</option>
+                    <option value="unpaid">Completely Unpaid</option>
+                  </select>
+                </div>
+              )}
+
+              {billingSubTab === 'dues' && (
+                <div className="sm:col-span-4 flex items-center text-xs text-brand-navy-600 font-medium px-2">
+                  <span className="text-[11px] text-brand-navy-500">Showing active members with outstanding dues</span>
+                </div>
+              )}
+
+              <div className="sm:col-span-2 flex items-center justify-end">
+                {(billingSearch || billingMethodFilter || billingInvoiceStatusFilter) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBillingSearch('');
+                      setBillingMethodFilter('');
+                      setBillingInvoiceStatusFilter('');
+                    }}
+                    className="w-full py-1.5 text-xs font-bold text-rose-700 hover:bg-rose-50 rounded-lg transition-colors border border-rose-200 text-center"
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
+            </div>
+
             {loadingBilling ? (
               <div className="py-12 text-center text-xs font-semibold text-brand-navy-500">
                 <Loader2 className="w-6 h-6 animate-spin mx-auto text-brand-gold-600 mb-2" />
@@ -949,6 +1327,10 @@ export default function AdminDashboardPage() {
               paymentsList.length === 0 ? (
                 <div className="py-12 text-center text-xs text-brand-navy-500 font-semibold">
                   No payment receipts recorded yet. Click "Record Manual Payment" or enroll members with initial fee.
+                </div>
+              ) : filteredPayments.length === 0 ? (
+                <div className="py-12 text-center text-xs text-brand-navy-500 font-semibold">
+                  No payment receipts match your search and filter criteria.
                 </div>
               ) : (
                 <div className="overflow-x-auto">
@@ -965,7 +1347,7 @@ export default function AdminDashboardPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-brand-surface-border">
-                      {paymentsList.map((p) => (
+                      {filteredPayments.map((p) => (
                         <tr key={p._id} className="hover:bg-brand-surface-muted/50 transition-colors">
                           <td className="py-3 px-4 font-mono font-bold text-brand-gold-700">
                             {p.paymentNumber}
@@ -1014,18 +1396,22 @@ export default function AdminDashboardPage() {
                 </div>
               )
             ) : billingSubTab === 'dues' ? (
-              /* SUBTAB 2: PENDING DUES */
+              /* SUBTAB 2: PENDING DUES (ONLY ACTIVE MEMBERS) */
               duesList.length === 0 ? (
                 <div className="py-12 text-center text-xs text-emerald-700 font-semibold flex items-center justify-center gap-1.5">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                  All student balances are completely settled! No outstanding dues.
+                  All active student balances are completely settled! No outstanding dues.
+                </div>
+              ) : filteredDues.length === 0 ? (
+                <div className="py-12 text-center text-xs text-brand-navy-500 font-semibold">
+                  No active members with pending dues match your search criteria.
                 </div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs">
                     <thead>
                       <tr className="border-b border-brand-surface-border text-brand-navy-500 uppercase font-bold tracking-wider">
-                        <th className="py-3 px-4">Student</th>
+                        <th className="py-3 px-4">Active Student</th>
                         <th className="py-3 px-4">Contact</th>
                         <th className="py-3 px-4">Membership Plan</th>
                         <th className="py-3 px-4">Unpaid Invoices</th>
@@ -1034,9 +1420,14 @@ export default function AdminDashboardPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-brand-surface-border">
-                      {duesList.map((due) => (
+                      {filteredDues.map((due) => (
                         <tr key={due._id} className="hover:bg-brand-surface-muted/50 transition-colors">
-                          <td className="py-3 px-4 font-bold text-brand-navy-950">{due.user?.name}</td>
+                          <td className="py-3 px-4">
+                            <span className="font-bold text-brand-navy-950 block">{due.user?.name}</span>
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 uppercase">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Active Member
+                            </span>
+                          </td>
                           <td className="py-3 px-4 text-brand-navy-600">{due.user?.email}</td>
                           <td className="py-3 px-4 text-brand-navy-800">{due.membershipPlan || '—'}</td>
                           <td className="py-3 px-4 text-brand-navy-700 font-semibold">{due.unpaidInvoiceCount}</td>
@@ -1077,6 +1468,10 @@ export default function AdminDashboardPage() {
                 <div className="py-12 text-center text-xs text-brand-navy-500 font-semibold">
                   No billing invoices generated yet.
                 </div>
+              ) : filteredInvoices.length === 0 ? (
+                <div className="py-12 text-center text-xs text-brand-navy-500 font-semibold">
+                  No invoices match your search and filter criteria.
+                </div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs">
@@ -1092,7 +1487,7 @@ export default function AdminDashboardPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-brand-surface-border">
-                      {invoices.map((inv) => (
+                      {filteredInvoices.map((inv) => (
                         <tr key={inv._id} className="hover:bg-brand-surface-muted/50 transition-colors">
                           <td className="py-3 px-4 font-mono font-bold text-brand-navy-950">{inv.invoiceNumber}</td>
                           <td className="py-3 px-4 font-medium text-brand-navy-800">
@@ -1768,6 +2163,200 @@ export default function AdminDashboardPage() {
                   className="px-4 py-2 font-bold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white transition-colors"
                 >
                   Record & Issue Receipt
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: UPDATE / EDIT MEMBERSHIP (PLAN, SHIFT TIMINGS, MONTHLY FEE) */}
+      {showEditMemberModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-brand-navy-950/60 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-brand-surface-border my-8">
+            <div className="flex items-center justify-between pb-3 border-b border-brand-surface-border mb-4">
+              <div>
+                <h3 className="text-base font-bold text-brand-navy-950">
+                  Update Membership & Shift
+                </h3>
+                <p className="text-xs text-brand-navy-500">
+                  {editingMembership?.userId?.name} ({editingMembership?.userId?.email})
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowEditMemberModal(false);
+                  setEditingMembership(null);
+                  setEditError('');
+                }}
+                className="text-brand-navy-400 hover:text-brand-navy-700"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {editError && (
+              <div className="p-3 rounded-xl bg-red-50 text-red-700 text-xs font-semibold mb-4 border border-red-200">
+                {editError}
+              </div>
+            )}
+
+            <form onSubmit={handleSaveEditMembership} className="space-y-4 text-xs">
+              {/* Shift Presets */}
+              <div>
+                <label className="block font-bold text-brand-navy-800 uppercase tracking-wider mb-1.5">
+                  Select Shift / Plan Preset *
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleEditPlanSelect('morning')}
+                    className={`p-2.5 rounded-xl border text-center transition-all ${
+                      editForm.planType === 'morning'
+                        ? 'border-brand-gold-500 bg-brand-gold-50/60 font-bold text-brand-navy-950 shadow-soft-sm'
+                        : 'border-brand-surface-border bg-white text-brand-navy-700 hover:bg-brand-surface-muted'
+                    }`}
+                  >
+                    <span className="block text-xs font-bold">Morning</span>
+                    <span className="block text-[10px] text-brand-navy-500">6 AM - 2 PM</span>
+                    <span className="block text-xs font-bold text-brand-gold-700 mt-0.5">₹600</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleEditPlanSelect('full_day')}
+                    className={`p-2.5 rounded-xl border text-center transition-all ${
+                      editForm.planType === 'full_day'
+                        ? 'border-brand-gold-500 bg-brand-gold-50/60 font-bold text-brand-navy-950 shadow-soft-sm'
+                        : 'border-brand-surface-border bg-white text-brand-navy-700 hover:bg-brand-surface-muted'
+                    }`}
+                  >
+                    <span className="block text-xs font-bold">Full Day</span>
+                    <span className="block text-[10px] text-brand-navy-500">6 AM - 10 PM</span>
+                    <span className="block text-xs font-bold text-brand-gold-700 mt-0.5">₹1,000</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleEditPlanSelect('evening')}
+                    className={`p-2.5 rounded-xl border text-center transition-all ${
+                      editForm.planType === 'evening'
+                        ? 'border-brand-gold-500 bg-brand-gold-50/60 font-bold text-brand-navy-950 shadow-soft-sm'
+                        : 'border-brand-surface-border bg-white text-brand-navy-700 hover:bg-brand-surface-muted'
+                    }`}
+                  >
+                    <span className="block text-xs font-bold">Evening</span>
+                    <span className="block text-[10px] text-brand-navy-500">2 PM - 10 PM</span>
+                    <span className="block text-xs font-bold text-brand-gold-700 mt-0.5">₹600</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Plan Name & Shift Timings */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-brand-navy-800 uppercase tracking-wider mb-1">
+                    Plan Display Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editForm.planName}
+                    onChange={(e) => setEditForm({ ...editForm, planName: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-brand-surface-border text-brand-navy-950 font-medium focus:outline-none focus:ring-2 focus:ring-brand-gold-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-brand-navy-800 uppercase tracking-wider mb-1">
+                    Shift Timings *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editForm.shiftTimings}
+                    onChange={(e) => setEditForm({ ...editForm, shiftTimings: e.target.value })}
+                    placeholder="e.g. 6:00 AM - 2:00 PM"
+                    className="w-full px-3 py-2 rounded-xl border border-brand-surface-border text-brand-navy-950 font-medium focus:outline-none focus:ring-2 focus:ring-brand-gold-500"
+                  />
+                </div>
+              </div>
+
+              {/* Monthly Fee (Increase or Decrease) */}
+              <div>
+                <label className="block font-bold text-brand-navy-800 uppercase tracking-wider mb-1">
+                  Monthly Fee (₹) *
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-2 font-bold text-brand-navy-400">₹</span>
+                  <input
+                    type="number"
+                    step="1"
+                    min="0"
+                    required
+                    value={editForm.monthlyFee}
+                    onChange={(e) => setEditForm({ ...editForm, monthlyFee: e.target.value })}
+                    placeholder="e.g. 600 or 1000"
+                    className="w-full pl-8 pr-3 py-2 rounded-xl border border-brand-surface-border text-brand-navy-950 font-bold text-sm focus:outline-none focus:ring-2 focus:ring-brand-gold-500"
+                  />
+                </div>
+                <p className="text-[11px] text-brand-navy-500 mt-1">
+                  You can increase or decrease this member's monthly fee at any time.
+                </p>
+              </div>
+
+              {/* Checkbox: apply to current unpaid invoice */}
+              <label className="flex items-start gap-2.5 p-3 rounded-xl bg-brand-surface-muted/60 border border-brand-surface-border cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={editForm.updateCurrentUnpaidInvoice}
+                  onChange={(e) => setEditForm({ ...editForm, updateCurrentUnpaidInvoice: e.target.checked })}
+                  className="mt-0.5 rounded border-brand-surface-border text-brand-navy-950 focus:ring-brand-gold-500"
+                />
+                <div>
+                  <span className="font-bold text-brand-navy-950 block">Update current unpaid billing invoice</span>
+                  <span className="text-[11px] text-brand-navy-500 block">
+                    If this student has an active unpaid invoice for this cycle, update its due amount to match the new fee.
+                  </span>
+                </div>
+              </label>
+
+              {/* Reason / Notes */}
+              <div>
+                <label className="block font-bold text-brand-navy-800 uppercase tracking-wider mb-1">
+                  Reason for Update (Audit Log)
+                </label>
+                <input
+                  type="text"
+                  value={editForm.reason}
+                  onChange={(e) => setEditForm({ ...editForm, reason: e.target.value })}
+                  placeholder="e.g. Student shifted from morning to full day pass"
+                  className="w-full px-3 py-2 rounded-xl border border-brand-surface-border text-brand-navy-950 font-medium focus:outline-none focus:ring-2 focus:ring-brand-gold-500"
+                />
+              </div>
+
+              {/* Actions */}
+              <div className="flex justify-end gap-2 pt-3 border-t border-brand-surface-border">
+                <button
+                  type="button"
+                  disabled={submittingEdit}
+                  onClick={() => {
+                    setShowEditMemberModal(false);
+                    setEditingMembership(null);
+                    setEditError('');
+                  }}
+                  className="px-4 py-2 text-xs font-semibold rounded-xl text-brand-navy-700 hover:bg-brand-surface-muted transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingEdit}
+                  className="flex items-center gap-2 px-5 py-2 text-xs font-bold rounded-xl bg-brand-navy-950 hover:bg-brand-navy-900 text-white transition-all shadow-soft-sm disabled:opacity-50"
+                >
+                  {submittingEdit && <Loader2 className="w-3.5 h-3.5 animate-spin text-brand-gold-400" />}
+                  <span>Save & Update Membership</span>
                 </button>
               </div>
             </form>

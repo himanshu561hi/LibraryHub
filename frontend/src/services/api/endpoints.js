@@ -23,6 +23,7 @@ export const API_ENDPOINTS = {
     LIST: '/memberships',
     CREATE: '/memberships',
     DETAILS: (id) => `/memberships/${id}`,
+    UPDATE: (id) => `/memberships/${id}`,
     DEACTIVATE: (id) => `/memberships/${id}/deactivate`,
     REACTIVATE: (id) => `/memberships/${id}/reactivate`,
     UPDATE_FEE: (id) => `/memberships/${id}/fee`,

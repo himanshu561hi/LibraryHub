@@ -361,8 +361,17 @@ export async function getOutstandingDues(req, res, next) {
       });
     }
 
+    // Fetch active memberships so dues strictly include currently active students
+    const activeMemberships = await Membership.find({ status: 'active' }).select('userId').lean();
+    const activeUserIds = activeMemberships.map((m) => m.userId);
+
     const duesByUser = await FeeInvoice.aggregate([
-      { $match: { balanceInPaise: { $gt: 0 } } },
+      {
+        $match: {
+          userId: { $in: activeUserIds },
+          balanceInPaise: { $gt: 0 },
+        },
+      },
       {
         $group: {
           _id: '$userId',
@@ -385,7 +394,16 @@ export async function getOutstandingDues(req, res, next) {
           from: 'memberships',
           let: { uId: '$_id' },
           pipeline: [
-            { $match: { $expr: { $eq: ['$userId', '$$uId'] } } },
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ['$userId', '$$uId'] },
+                    { $eq: ['$status', 'active'] },
+                  ],
+                },
+              },
+            },
             { $sort: { createdAt: -1 } },
             { $limit: 1 },
           ],

@@ -134,10 +134,14 @@ export const getAdminDashboardSummary = async (req, res, next) => {
     const presentTodayCount = await Attendance.countDocuments({ date: todayKey });
     const currentlyCheckedInCount = await Attendance.countDocuments({ date: todayKey, status: 'IN' });
 
-    const allUnpaidInvoices = await FeeInvoice.find({
+    const activeMemberships = await Membership.find({ status: 'active' }).select('_id').lean();
+    const activeMembershipIds = activeMemberships.map((m) => m._id);
+
+    const activeUnpaidInvoices = await FeeInvoice.find({
+      membershipId: { $in: activeMembershipIds },
       status: { $in: ['unpaid', 'partially_paid', 'overdue'] },
     });
-    const totalDuesInPaise = allUnpaidInvoices.reduce((sum, inv) => sum + (inv.balanceInPaise || 0), 0);
+    const totalDuesInPaise = activeUnpaidInvoices.reduce((sum, inv) => sum + (inv.balanceInPaise || 0), 0);
 
     const todayStart = new Date();
     todayStart.setUTCHours(0, 0, 0, 0);

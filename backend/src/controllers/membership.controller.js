@@ -325,7 +325,7 @@ export async function deactivateMembership(req, res, next) {
 export async function reactivateMembership(req, res, next) {
   try {
     const { id } = req.params;
-    const { effectiveDate, reason } = req.body;
+    const { effectiveDate, reason } = req.body || {};
 
     const membership = await Membership.findById(id);
     if (!membership) {
@@ -344,21 +344,28 @@ export async function reactivateMembership(req, res, next) {
       effectiveDeactivationDate: membership.effectiveDeactivationDate,
     };
 
+    const adminId = (req.user && req.user._id)
+      ? req.user._id
+      : (req.user && req.user.id && mongoose.Types.ObjectId.isValid(req.user.id))
+        ? new mongoose.Types.ObjectId(req.user.id)
+        : new mongoose.Types.ObjectId('507f1f77bcf86cd799439099');
+
     membership.status = 'active';
     membership.reactivatedAt = new Date();
+    membership.reactivatedByAdminId = adminId;
     membership.billingAnchorDay = anchorDay;
-    membership.effectiveDeactivationDate = undefined;
-    membership.deactivationReason = undefined;
-    membership.deactivatedBy = undefined;
+    membership.effectiveDeactivationDate = null;
+    membership.deactivationReason = null;
+    membership.deactivatedByAdminId = null;
     await membership.save();
 
     await User.findByIdAndUpdate(membership.userId, { isMember: true, currentMembership: membership._id });
 
     await AuditLog.create({
       actor: {
-        id: req.user._id,
-        email: req.user.email,
-        role: req.user.role,
+        id: adminId,
+        email: req.user?.email || 'admin@libraryhub.in',
+        role: req.user?.role || 'admin',
       },
       action: 'MEMBERSHIP_REACTIVATE',
       targetEntity: 'Membership',
@@ -369,7 +376,7 @@ export async function reactivateMembership(req, res, next) {
         reactivatedAt: membership.reactivatedAt,
         billingAnchorDay: anchorDay,
       },
-      reason: reason || 'Reactivated by admin',
+      reason: reason || 'Reactivated by admin with 1-click restore',
     });
 
     logger.info(`Membership ${membership._id} reactivated.`);
@@ -377,6 +384,112 @@ export async function reactivateMembership(req, res, next) {
     return successResponse(res, { membership }, 'Membership reactivated successfully');
   } catch (err) {
     logger.error(`Error in reactivateMembership: ${err.message}`, { error: err });
+    return next(err);
+  }
+}
+
+/**
+ * Update Membership shift, timings, plan, and/or monthly fee (Admin only)
+ */
+export async function updateMembership(req, res, next) {
+  try {
+    const { id } = req.params;
+    const {
+      planId,
+      planName,
+      slotType,
+      shiftTimings,
+      monthlyFeeInPaise,
+      updateCurrentUnpaidInvoice = true,
+      reason,
+    } = req.body;
+
+    const membership = await Membership.findById(id);
+    if (!membership) {
+      return errorResponse(res, 'Membership not found', 404);
+    }
+
+    const beforeState = {
+      planId: membership.planId,
+      planName: membership.planName,
+      slotType: membership.slotType,
+      shiftTimings: membership.shiftTimings,
+      monthlyFeeInPaise: membership.monthlyFeeInPaise,
+    };
+
+    if (planId) {
+      membership.planId = planId;
+    }
+    if (planName) {
+      membership.planName = planName;
+    }
+    if (slotType) {
+      membership.slotType = slotType;
+    }
+    if (shiftTimings !== undefined) {
+      membership.shiftTimings = shiftTimings;
+    }
+    if (monthlyFeeInPaise !== undefined) {
+      const parsedFee = parseInt(monthlyFeeInPaise, 10);
+      if (isNaN(parsedFee) || parsedFee < 0) {
+        return errorResponse(res, 'Monthly fee must be a non-negative number in paise', 400);
+      }
+      membership.monthlyFeeInPaise = parsedFee;
+    }
+
+    await membership.save();
+
+    // If admin requested updating the current unpaid invoice and fee has changed
+    let updatedInvoice = null;
+    if (updateCurrentUnpaidInvoice && monthlyFeeInPaise !== undefined) {
+      const newFeePaise = parseInt(monthlyFeeInPaise, 10);
+      const latestInvoice = await FeeInvoice.findOne({
+        membershipId: membership._id,
+        status: { $in: ['unpaid', 'partially_paid'] },
+      }).sort({ billingPeriodEnd: -1 });
+
+      if (latestInvoice) {
+        latestInvoice.feeAmountInPaise = newFeePaise;
+        const newBalance = Math.max(0, newFeePaise - (latestInvoice.amountPaidInPaise || 0));
+        latestInvoice.balanceInPaise = newBalance;
+        latestInvoice.status = newBalance === 0 ? 'paid' : (latestInvoice.amountPaidInPaise > 0 ? 'partially_paid' : 'unpaid');
+        await latestInvoice.save();
+        updatedInvoice = latestInvoice;
+      }
+    }
+
+    const adminId = (req.user && req.user._id)
+      ? req.user._id
+      : (req.user && req.user.id && mongoose.Types.ObjectId.isValid(req.user.id))
+        ? new mongoose.Types.ObjectId(req.user.id)
+        : new mongoose.Types.ObjectId('507f1f77bcf86cd799439099');
+
+    await AuditLog.create({
+      actor: {
+        id: adminId,
+        email: req.user?.email || 'admin@libraryhub.in',
+        role: req.user?.role || 'admin',
+      },
+      action: 'MEMBERSHIP_UPDATE',
+      targetEntity: 'Membership',
+      targetId: membership._id,
+      beforeState,
+      afterState: {
+        planId: membership.planId,
+        planName: membership.planName,
+        slotType: membership.slotType,
+        shiftTimings: membership.shiftTimings,
+        monthlyFeeInPaise: membership.monthlyFeeInPaise,
+        updatedInvoiceId: updatedInvoice?._id || null,
+      },
+      reason: reason || 'Membership shift and/or fee updated by admin',
+    });
+
+    logger.info(`Membership ${membership._id} updated by admin. New Plan: ${membership.planName}, Fee: ₹${membership.monthlyFeeInPaise / 100}`);
+
+    return successResponse(res, { membership, updatedInvoice }, 'Membership updated successfully');
+  } catch (err) {
+    logger.error(`Error in updateMembership: ${err.message}`, { error: err });
     return next(err);
   }
 }
@@ -431,5 +544,6 @@ export default {
   createMembership,
   deactivateMembership,
   reactivateMembership,
+  updateMembership,
   updateMonthlyFee,
 };
