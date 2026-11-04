@@ -1,47 +1,49 @@
-# Library Hub Nawalpur
+# Library Hub Nawalpur — Full-Stack Management Platform
 
-> Official web platform for **Library Hub Nawalpur** — A calm, disciplined, student-focused self-study library located on Main Road, Nawalpur (Opposite Kali Mandir), Salempur, Deoria, Uttar Pradesh.
+> Official web platform and management system for **Library Hub Nawalpur** — A calm, disciplined, student-focused self-study library located on Main Road, Nawalpur (Opposite Kali Mandir), Salempur, Deoria, Uttar Pradesh.
 
 ---
 
-## Project Architecture (Monorepo)
+## Project Architecture (Full-Stack Monorepo)
 
-The repository is structured as a clean separation of concerns, separating the active React.js frontend from the future backend API service:
+The repository is structured with a strict separation of concerns:
 
 ```text
 Library-Hub-Nawalpur/
-├── frontend/                     # React.js application
-│   ├── public/                   # Static public assets (favicon, manifest)
+├── frontend/                     # React.js application (Vite + Tailwind CSS + Framer Motion)
+│   ├── public/                   # Static public assets (favicon, redirects, manifest)
 │   ├── src/
-│   │   ├── assets/               # Images, icons, and wallpapers
-│   │   │   ├── images/           # Authentic study desk photos, banners, logos
-│   │   │   └── icons/            # Brand and custom SVG icons
-│   │   ├── components/
-│   │   │   ├── common/           # Universal UI components (Buttons, Badges, Cards)
-│   │   │   ├── layout/           # Fixed Header, Navigation, Footer, Layout
-│   │   │   └── home/             # Homepage-specific components
-│   │   ├── data/                 # Centralized business datasets (plans, faqs, reviews)
-│   │   ├── hooks/                # Custom React hooks
-│   │   ├── pages/                # Route views (Home, About, Facilities, Membership, etc.)
-│   │   ├── services/             # Future API client & endpoint contracts
-│   │   │   ├── api/              # Base fetch client and API endpoint registry
-│   │   │   └── index.js
-│   │   ├── styles/               # Global Tailwind CSS and typography rules
-│   │   ├── utils/                # Utility helpers (currency formatting, link builders)
-│   │   ├── App.jsx               # React Router layout tree
-│   │   └── main.jsx              # Vite entry point
-│   ├── .env.example              # Environment variables template
-│   ├── index.html                # HTML document entry
-│   ├── package.json              # Frontend dependencies and scripts
-│   ├── postcss.config.js         # PostCSS configuration
-│   ├── tailwind.config.js        # Custom Tailwind design tokens & font families
-│   ├── vite.config.js            # Vite configuration with chunk splitting & @ alias
-│   └── README.md                 # Frontend-specific documentation
+│   │   ├── assets/               # Desk photos, brand banners, formulas background
+│   │   ├── components/           # UI components (Header, Footer, FeatureCard, ProtectedRoute)
+│   │   ├── context/              # AuthContext (Google OAuth & Admin session management)
+│   │   ├── data/                 # Pricing plans, FAQs, real reviews, navigation
+│   │   ├── pages/                # Public pages & Student/Admin Dashboards
+│   │   │   ├── auth/             # LoginPage
+│   │   │   ├── admin/            # AdminLoginPage, AdminDashboardPage
+│   │   │   ├── student/          # StudentDashboardPage
+│   │   │   └── ...               # HomePage, AboutPage, FacilitiesPage, etc.
+│   │   ├── services/             # API Client & Endpoints registry
+│   │   └── styles/               # Global typography and design tokens
+│   ├── package.json              # Frontend scripts & dependencies
+│   ├── vite.config.js            # Vite build configuration with chunking
+│   └── .env.example              # Frontend environment variables template
 │
-├── backend/                      # Reserved directory for future Backend API service
-│   └── .gitkeep
+├── backend/                      # Production Node.js + Express + MongoDB API service
+│   ├── src/
+│   │   ├── config/               # Environment & runtime configuration
+│   │   ├── controllers/          # Auth, Dashboard, Membership, Billing, Attendance, Email, Admin
+│   │   ├── middlewares/          # JWT auth, RBAC, rate limiter, validation, error handler
+│   │   ├── models/               # 11 Mongoose Schemas (User, Membership, Attendance, FeeInvoice, etc.)
+│   │   ├── routes/               # API route definitions
+│   │   ├── services/             # Google Auth & Nodemailer abstraction
+│   │   └── utils/                # Billing calculator, tokens, logger, daily code generator
+│   ├── scripts/seed.js           # Database seeder for super admin & settings
+│   ├── tests/                    # Jest automated test suites (30 tests)
+│   ├── package.json              # Backend scripts & dependencies
+│   └── .env.example              # Backend environment variables template
 │
-├── .gitignore                    # Monorepo-wide Git ignore rules
+├── docs/                         # Architecture Decision Records (ADRs) & Phase Reports (00-10)
+├── netlify.toml                  # Netlify deployment configuration for frontend
 └── README.md                     # Root project guide
 ```
 
@@ -53,61 +55,94 @@ Library-Hub-Nawalpur/
 
 - **Node.js**: v18.0.0 or higher
 - **npm**: v9.0.0 or higher
+- **MongoDB**: Local MongoDB instance or MongoDB Atlas URI
+
+---
 
 ### 1. Frontend Setup
 
-All frontend source code resides inside the `frontend/` directory.
-
 ```bash
-# Navigate to the frontend directory
 cd frontend
-
-# Install dependencies
 npm install
-
-# Start local development server
 npm run dev
 ```
 
-The frontend will start locally at **`http://localhost:3000`**.
+The frontend local development server runs at **`http://localhost:3000`**.
 
-### 2. Environment Configuration
-
-Copy the example environment configuration in the `frontend/` directory:
+To build for production:
 
 ```bash
-cp frontend/.env.example frontend/.env
-```
-
-Default configuration in `frontend/.env`:
-
-```env
-# Future backend API endpoint
-VITE_API_BASE_URL=http://localhost:5000/api
+npm run build
 ```
 
 ---
 
-## Available Frontend Scripts
+### 2. Backend Setup
 
-Run these commands from inside the `frontend/` folder:
+```bash
+cd backend
+npm install
+cp .env.example .env
+```
 
-| Command | Description |
-| :--- | :--- |
-| `npm run dev` | Starts Vite local development server on `http://localhost:3000` |
-| `npm run build` | Builds optimized production bundle into `frontend/dist/` |
-| `npm run preview` | Previews the production build locally |
+To seed the initial super admin account and default site settings:
+
+```bash
+npm run seed
+```
+
+To run the backend server in development mode:
+
+```bash
+npm run dev
+```
+
+The backend API runs at **`http://localhost:5001/api/v1`**.
 
 ---
 
-## Future Backend Roadmap
+### 3. Automated Test Suite
 
-The `backend/` directory is prepared for future server-side implementation:
+Run all automated unit and integration tests for the backend (models, billing engine, OAuth, RBAC, attendance rules, CSV formula injection defense):
 
-- RESTful API service (Express.js, Fastify, Python/FastAPI, or Go).
-- Database integration (PostgreSQL, MongoDB, or Cloud Firestore).
-- Student registration, seat reservation management, and admin dashboard.
-- The frontend already includes a centralized service architecture in `frontend/src/services/` configured to consume `VITE_API_BASE_URL`.
+```bash
+npm test --prefix backend
+```
+
+---
+
+## Key Features
+
+1. **Public Website**:
+   - Modern, high-performance responsive site with desk photos, transparent pricing (Morning ₹600, Full Day ₹1000, Evening ₹600), real Google reviews, and mobile drawer.
+2. **Student Member Portal (`/dashboard`)**:
+   - Daily 6-character attendance code verification (Check IN & OUT).
+   - Inactive membership protection (blocks daily attendance while preserving historical records).
+   - Study logs, hours calculation, fee invoices, and payment receipts.
+3. **Admin Console (`/admin`)**:
+   - Live metrics: Active/inactive members, present today, inside library now, total dues, collections.
+   - Daily Attendance Code widget with copy and reveal toggle.
+   - Student & Membership directory with immediate deactivation (mandatory reason).
+   - Real-time attendance monitor with manual correction audit trail.
+   - Financial ledger: Invoices, partial payment recording, receipt generation, payment reversals.
+   - Bulk email broadcast campaign manager with audience estimation (`ALL`, `ACTIVE`, `INACTIVE`) and preview.
+   - Append-only audit trail logging all sensitive staff actions.
+   - CSV reports export with formula-injection escaping (`=`, `+`, `-`, `@`).
+
+---
+
+## Deployment Configuration
+
+### Frontend (Netlify)
+The root `netlify.toml` file automatically builds from `frontend`:
+- **Base directory**: `frontend`
+- **Build command**: `npm run build`
+- **Publish directory**: `dist`
+- **Redirects**: Single-page application fallback to `/index.html` with HTTP 200.
+
+### Backend (Node.js Service)
+- Deploy to Render, Railway, DigitalOcean App Platform, or Docker container.
+- Supply environment variables from `backend/.env.example`.
 
 ---
 

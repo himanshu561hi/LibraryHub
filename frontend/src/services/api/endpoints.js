@@ -1,43 +1,71 @@
 /**
  * Centralized API Endpoints registry for Library Hub Nawalpur.
- * Used for future backend integration.
  */
 export const API_ENDPOINTS = {
-  // Authentication (future admin/student portal)
+  // Authentication
   AUTH: {
-    LOGIN: '/auth/login',
-    LOGOUT: '/auth/logout',
+    GOOGLE: '/auth/google',
+    ADMIN_LOGIN: '/auth/admin/login',
     ME: '/auth/me',
+    PROFILE: '/auth/profile',
+    LOGOUT: '/auth/logout',
   },
 
-  // Inquiries and Admissions
-  INQUIRIES: {
-    SUBMIT: '/inquiries',
-    LIST: '/inquiries',
-    DETAILS: (id) => `/inquiries/${id}`,
+  // Dashboards
+  DASHBOARD: {
+    STUDENT: '/dashboard/student',
+    ADMIN_SUMMARY: '/dashboard/admin/summary',
+    ADMIN_DAILY_CODE: '/dashboard/admin/daily-code',
   },
 
-  // Membership & Pricing Plans
+  // Memberships Lifecycle
   MEMBERSHIPS: {
-    PLANS: '/memberships/plans',
-    SLOTS: '/memberships/slots',
-    AVAILABILITY: '/memberships/availability',
+    LIST: '/memberships',
+    CREATE: '/memberships',
+    DETAILS: (id) => `/memberships/${id}`,
+    DEACTIVATE: (id) => `/memberships/${id}/deactivate`,
+    REACTIVATE: (id) => `/memberships/${id}/reactivate`,
+    UPDATE_FEE: (id) => `/memberships/${id}/fee`,
   },
 
-  // Facilities & Amenities
-  FACILITIES: {
-    LIST: '/facilities',
+  // Attendance & Daily Code
+  ATTENDANCE: {
+    CHECK_IN: '/attendance/check-in',
+    CHECK_OUT: '/attendance/check-out',
+    TODAY_STATUS: '/attendance/today',
+    MY_HISTORY: '/attendance/history',
+    ADMIN_LIVE: '/attendance/admin/live',
+    ADMIN_CORRECT: (id) => `/attendance/admin/${id}/correct`,
   },
 
-  // Reviews and Testimonials
-  REVIEWS: {
-    LIST: '/reviews',
-    SUBMIT: '/reviews',
+  // Fees, Invoices & Manual Payments
+  BILLING: {
+    INVOICES: '/billing/invoices',
+    INVOICE_DETAILS: (id) => `/billing/invoices/${id}`,
+    RECORD_PAYMENT: '/billing/payments',
+    PAYMENT_HISTORY: '/billing/payments',
+    REVERSE_PAYMENT: (id) => `/billing/payments/${id}/reverse`,
+    OUTSTANDING_DUES: '/billing/dues',
   },
 
-  // Site Configuration & Contact
-  CONFIG: {
-    BUSINESS_INFO: '/config/business-info',
+  // Email Campaigns
+  EMAIL: {
+    SEND_CAMPAIGN: '/email/campaigns',
+    CAMPAIGNS_LIST: '/email/campaigns',
+    CAMPAIGN_DETAILS: (id) => `/email/campaigns/${id}`,
+    PREVIEW_AUDIENCE: '/email/preview-audience',
+  },
+
+  // Reports and Audit Logs
+  ADMIN: {
+    STUDENTS: '/admin/students',
+    STUDENT_DETAILS: (id) => `/admin/students/${id}`,
+    AUDIT_LOGS: '/admin/audit-logs',
+    SETTINGS: '/admin/settings',
+    REPORTS_COLLECTIONS: '/admin/reports/collections',
+    REPORTS_ATTENDANCE: '/admin/reports/attendance',
+    EXPORT_CSV: (type) => `/admin/export/${type}`,
   },
 };
 
+export default API_ENDPOINTS;

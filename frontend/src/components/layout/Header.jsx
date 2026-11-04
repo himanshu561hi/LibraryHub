@@ -10,7 +10,11 @@ import {
   ShieldCheck,
   HelpCircle,
   MessageCircle,
+  User,
+  LogIn,
+  LogOut,
 } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { primaryNavLinks, moreNavLinks, allNavLinks } from '../../data/navigation';
 import { siteConfig } from '../../data/siteConfig';
@@ -18,6 +22,7 @@ import { libraryImages } from '../../data/images';
 import libraryHubBg from '../../assets/images/library-hub-formulas-hd.png';
 
 export default function Header() {
+  const { user, isAuthenticated, isAdmin, logout } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [moreDropdownOpen, setMoreDropdownOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -220,15 +225,58 @@ export default function Header() {
             </NavLink>
           </nav>
 
-          {/* Desktop Right CTA Button */}
+          {/* Desktop Right CTA Buttons */}
           <div className="hidden lg:flex items-center gap-3">
-            <Link
-              to="/membership"
-              className="inline-flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-lg text-sm font-semibold bg-brand-navy-900 text-white hover:bg-brand-navy-800 active:scale-[0.98] transition-all shadow-soft-sm hover:shadow-soft"
-            >
-              <span>Explore Membership</span>
-              <ArrowRight className="w-4 h-4 text-brand-gold-400" />
-            </Link>
+            {isAuthenticated ? (
+              <div className="flex items-center gap-2">
+                <Link
+                  to={isAdmin ? '/admin' : '/dashboard'}
+                  className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all shadow-soft-sm hover:shadow-soft border ${
+                    location.pathname.startsWith('/admin') || location.pathname.startsWith('/dashboard')
+                      ? 'bg-brand-navy-950 text-white border-brand-navy-950'
+                      : 'bg-white hover:bg-brand-surface-muted text-brand-navy-950 border-brand-surface-border'
+                  }`}
+                  title={user?.name || (isAdmin ? 'Admin Console' : 'Student Portal')}
+                >
+                  <div
+                    className={`w-5 h-5 rounded-full flex items-center justify-center font-bold text-[10px] ${
+                      isAdmin ? 'bg-brand-gold-500 text-brand-navy-950' : 'bg-brand-navy-900 text-white'
+                    }`}
+                  >
+                    {user?.name ? user.name.charAt(0).toUpperCase() : (isAdmin ? 'A' : 'S')}
+                  </div>
+                  <span>{isAdmin ? 'Admin Console' : 'My Portal'}</span>
+                </Link>
+
+                <button
+                  type="button"
+                  onClick={logout}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-red-700 bg-red-50 hover:bg-red-100/80 active:scale-[0.98] transition-all border border-red-200/80 shadow-soft-sm"
+                  title="Sign Out of Library Hub"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span>Sign Out</span>
+                </button>
+              </div>
+            ) : (
+              <>
+                <Link
+                  to="/login"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-brand-navy-800 hover:text-brand-navy-950 hover:bg-white/80 transition-colors"
+                >
+                  <LogIn className="w-3.5 h-3.5 text-brand-gold-600" />
+                  <span>Student Login</span>
+                </Link>
+
+                <Link
+                  to="/membership"
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-brand-navy-900 text-white hover:bg-brand-navy-800 active:scale-[0.98] transition-all shadow-soft-sm hover:shadow-soft"
+                >
+                  <span>Explore Membership</span>
+                  <ArrowRight className="w-3.5 h-3.5 text-brand-gold-400" />
+                </Link>
+              </>
+            )}
           </div>
 
           {/* Mobile Hamburger Menu Button */}
@@ -318,12 +366,36 @@ export default function Header() {
                   </div>
 
                   <Link
-                    to="/membership"
-                    className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-lg text-sm font-semibold bg-brand-navy-900 text-white hover:bg-brand-navy-800 transition-colors shadow-soft"
+                    to={isAuthenticated ? (isAdmin ? '/admin' : '/dashboard') : '/login'}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold bg-brand-surface-muted text-brand-navy-950 border border-brand-surface-border transition-colors shadow-soft-sm"
                   >
-                    <span>Explore Membership Plans</span>
-                    <ArrowRight className="w-4 h-4 text-brand-gold-400" />
+                    <User className="w-4 h-4 text-brand-gold-600" />
+                    <span>{isAuthenticated ? (isAdmin ? 'Admin Console' : 'My Student Portal') : 'Student Member Login'}</span>
                   </Link>
+
+                  {isAuthenticated && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMobileMenuOpen(false);
+                        logout();
+                      }}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-xs font-bold text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 transition-colors"
+                    >
+                      <LogOut className="w-3.5 h-3.5" />
+                      <span>Sign Out ({user?.name || 'Account'})</span>
+                    </button>
+                  )}
+
+                  {!isAdmin && (
+                    <Link
+                      to="/membership"
+                      className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-lg text-sm font-semibold bg-brand-navy-900 text-white hover:bg-brand-navy-800 transition-colors shadow-soft"
+                    >
+                      <span>Explore Membership Plans</span>
+                      <ArrowRight className="w-4 h-4 text-brand-gold-400" />
+                    </Link>
+                  )}
                 </div>
               </div>
             </motion.div>

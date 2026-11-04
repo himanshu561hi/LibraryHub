@@ -7,11 +7,16 @@
 @layer base {
   html {
     -webkit-tap-highlight-color: transparent;
+    overflow-x: hidden;
+    width: 100%;
   }
   
   body {
     background-color: #FDFBF7;
     color: #0F2238;
+    overflow-x: hidden;
+    width: 100%;
+    min-width: 320px;
   }
 
   /* Accessible focus visible outlines */

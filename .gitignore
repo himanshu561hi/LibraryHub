@@ -18,13 +18,14 @@ frontend/dist
 dist-ssr
 
 # Local Environment Variables
-.env
-.env.local
-.env.*.local
+*.env
+*.env.local
+*.env.*.local
 frontend/.env
 frontend/.env.local
 backend/.env
 backend/.env.local
+backend/*.env
 !.env.example
 !frontend/.env.example
 !backend/.env.example

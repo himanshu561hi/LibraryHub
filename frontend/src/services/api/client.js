@@ -1,11 +1,10 @@
 /**
  * Base HTTP API Client for Library Hub Nawalpur.
- * Uses native fetch with standard error handling, query parameters, and timeout support.
- * Configured to read the base URL from VITE_API_BASE_URL.
+ * Uses native fetch with standard error handling, query parameters, auth token injection, and timeout support.
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
-const DEFAULT_TIMEOUT_MS = 10000;
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api/v1';
+const DEFAULT_TIMEOUT_MS = 15000;
 
 export class ApiError extends Error {
   constructor(message, status = 500, data = null) {
@@ -17,7 +16,7 @@ export class ApiError extends Error {
 }
 
 /**
- * Perform an HTTP request with built-in timeout, JSON parsing, and error formatting.
+ * Perform an HTTP request with built-in timeout, token injection, and error formatting.
  */
 async function request(endpoint, options = {}) {
   const {
@@ -29,7 +28,9 @@ async function request(endpoint, options = {}) {
     ...customConfig
   } = options;
 
-  let url = endpoint.startsWith('http') ? endpoint : `${API_BASE_URL.replace(/\/$/, '')}/${endpoint.replace(/^\//, '')}`;
+  let url = endpoint.startsWith('http')
+    ? endpoint
+    : `${API_BASE_URL.replace(/\/$/, '')}/${endpoint.replace(/^\//, '')}`;
 
   if (params && Object.keys(params).length > 0) {
     const searchParams = new URLSearchParams();
@@ -47,13 +48,20 @@ async function request(endpoint, options = {}) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
 
+  // Retrieve token from local storage if available
+  const token = typeof window !== 'undefined' ? localStorage.getItem('lh_auth_token') : null;
+
+  const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
+
   const config = {
     method,
     headers: {
       'Content-Type': 'application/json',
       Accept: 'application/json',
+      ...authHeaders,
       ...headers,
     },
+    credentials: 'include', // Include HttpOnly cookies
     signal: controller.signal,
     ...customConfig,
   };
@@ -66,7 +74,6 @@ async function request(endpoint, options = {}) {
     const response = await fetch(url, config);
     clearTimeout(timeoutId);
 
-    // Parse response
     let data = null;
     const contentType = response.headers.get('content-type');
     if (contentType && contentType.includes('application/json')) {
@@ -76,7 +83,7 @@ async function request(endpoint, options = {}) {
     }
 
     if (!response.ok) {
-      const errorMessage = data?.message || response.statusText || 'Request failed';
+      const errorMessage = data?.error?.message || data?.message || response.statusText || 'Request failed';
       throw new ApiError(errorMessage, response.status, data);
     }
 
@@ -105,4 +112,3 @@ export const apiClient = {
 };
 
 export default apiClient;
-

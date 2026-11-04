@@ -195,6 +195,9 @@ export default function Footer() {
             <Link to="/contact" className="hover:text-brand-navy-950 transition-colors" style={textHaloStyle}>
               Help & Inquiries
             </Link>
+            <Link to="/admin/login" className="hover:text-brand-gold-700 transition-colors" style={textHaloStyle}>
+              Staff Portal
+            </Link>
           </div>
         </div>
       </div>
