@@ -46,6 +46,7 @@ export default function AdminDashboardPage() {
   const [memberFilter, setMemberFilter] = useState(''); // status: '' | 'active' | 'inactive'
   const [memberSearch, setMemberSearch] = useState('');
   const [memberPlanFilter, setMemberPlanFilter] = useState(''); // '' | 'half-day-morning' | 'full-day-pass' | 'half-day-evening'
+  const [memberFeeStatusFilter, setMemberFeeStatusFilter] = useState(''); // '' | 'dues' | 'advance' | 'paid'
   const [loadingMembers, setLoadingMembers] = useState(false);
 
   const [liveAttendance, setLiveAttendance] = useState(null);
@@ -61,7 +62,8 @@ export default function AdminDashboardPage() {
   const [billingSubTab, setBillingSubTab] = useState('payments'); // 'payments' | 'dues' | 'invoices'
   const [billingSearch, setBillingSearch] = useState('');
   const [billingMethodFilter, setBillingMethodFilter] = useState(''); // '' | 'CASH' | 'UPI' | 'BANK_TRANSFER'
-  const [billingInvoiceStatusFilter, setBillingInvoiceStatusFilter] = useState(''); // '' | 'paid' | 'partially_paid' | 'unpaid'
+  const [billingInvoiceStatusFilter, setBillingInvoiceStatusFilter] = useState(''); // '' | 'advance' | 'paid' | 'partially_paid' | 'unpaid'
+  const [billingPlanFilter, setBillingPlanFilter] = useState('');
   const [loadingBilling, setLoadingBilling] = useState(false);
 
   const [campaigns, setCampaigns] = useState([]);
@@ -584,9 +586,45 @@ export default function AdminDashboardPage() {
     window.open(`${API_ENDPOINTS.ADMIN.EXPORT_CSV}?type=${type}`, '_blank');
   };
 
-  // Filtered Billing Lists for Tab 4
+  // Filtered Memberships for Tab 2 (Students & Members)
+  const filteredMemberships = memberships.filter((m) => {
+    if (memberFilter && m.status !== memberFilter) return false;
+    if (memberPlanFilter && m.planId !== memberPlanFilter) return false;
+    if (memberFeeStatusFilter === 'dues' && (!m.billingSummary || m.billingSummary.totalDuePaise <= 0)) return false;
+    if (memberFeeStatusFilter === 'advance' && (!m.billingSummary || !m.billingSummary.isAdvancePaid)) return false;
+    if (memberFeeStatusFilter === 'paid' && (!m.billingSummary || m.billingSummary.totalDuePaise > 0 || m.billingSummary.isAdvancePaid)) return false;
+    if (memberSearch.trim()) {
+      const q = memberSearch.toLowerCase().trim();
+      const nameMatch = (m.userId?.name || '').toLowerCase().includes(q);
+      const emailMatch = (m.userId?.email || '').toLowerCase().includes(q);
+      const phoneMatch = (m.userId?.phone || '').includes(q);
+      if (!nameMatch && !emailMatch && !phoneMatch) return false;
+    }
+    return true;
+  });
+
+  // Filtered Live Attendance Records for Tab 3 (Live Attendance)
+  const filteredAttendanceRecords = (liveAttendance?.allRecords || []).filter((att) => {
+    if (attendanceFilter === 'present' && !att.isPresent) return false;
+    if (attendanceFilter === 'inside' && (!att.inTime || att.outTime)) return false;
+    if (attendanceFilter === 'absent' && att.isPresent) return false;
+    if (attendanceSearch.trim()) {
+      const q = attendanceSearch.toLowerCase().trim();
+      const studentName = (att.userId?.name || '').toLowerCase();
+      const studentEmail = (att.userId?.email || '').toLowerCase();
+      if (!studentName.includes(q) && !studentEmail.includes(q)) return false;
+    }
+    if (attendanceShiftFilter) {
+      const planName = (att.planName || '').toLowerCase();
+      if (!planName.includes(attendanceShiftFilter.toLowerCase())) return false;
+    }
+    return true;
+  });
+
+  // Filtered Billing Lists for Tab 4 (Fees & Invoices)
   const filteredPayments = paymentsList.filter((p) => {
     if (billingMethodFilter && p.method?.toUpperCase() !== billingMethodFilter) return false;
+    if (billingPlanFilter && !(p.invoiceId?.planName || '').toLowerCase().includes(billingPlanFilter.toLowerCase())) return false;
     if (billingSearch.trim()) {
       const q = billingSearch.toLowerCase().trim();
       const studentName = (p.userId?.name || '').toLowerCase();
@@ -608,6 +646,7 @@ export default function AdminDashboardPage() {
   });
 
   const filteredDues = duesList.filter((due) => {
+    if (billingPlanFilter && !(due.membershipPlan || '').toLowerCase().includes(billingPlanFilter.toLowerCase())) return false;
     if (billingSearch.trim()) {
       const q = billingSearch.toLowerCase().trim();
       const studentName = (due.user?.name || '').toLowerCase();
@@ -629,6 +668,7 @@ export default function AdminDashboardPage() {
         return false;
       }
     }
+    if (billingPlanFilter && !(inv.planName || '').toLowerCase().includes(billingPlanFilter.toLowerCase())) return false;
     if (billingSearch.trim()) {
       const q = billingSearch.toLowerCase().trim();
       const studentName = (inv.userId?.name || '').toLowerCase();
@@ -865,14 +905,14 @@ export default function AdminDashboardPage() {
 
           {/* Interactive Filter & Search Bar */}
           <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 p-3 rounded-xl bg-brand-surface-muted/60 border border-brand-surface-border mb-6">
-            <div className="sm:col-span-5 relative">
+            <div className="sm:col-span-4 relative">
               <Search className="w-4 h-4 text-brand-navy-400 absolute left-3 top-2.5" />
               <input
                 type="text"
                 value={memberSearch}
                 onChange={(e) => setMemberSearch(e.target.value)}
                 placeholder="Search by student name, email, or phone..."
-                className="w-full pl-9 pr-3 py-1.5 text-xs rounded-lg border border-brand-surface-border bg-white text-brand-navy-950 focus:outline-none focus:ring-2 focus:ring-brand-gold-500 font-medium"
+                className="w-full pl-9 pr-8 py-1.5 text-xs rounded-lg border border-brand-surface-border bg-white text-brand-navy-950 focus:outline-none focus:ring-2 focus:ring-brand-gold-500 font-medium"
               />
               {memberSearch && (
                 <button
@@ -885,15 +925,15 @@ export default function AdminDashboardPage() {
               )}
             </div>
 
-            <div className="sm:col-span-3">
+            <div className="sm:col-span-2">
               <select
                 value={memberFilter}
                 onChange={(e) => setMemberFilter(e.target.value)}
-                className="w-full px-3 py-1.5 text-xs rounded-lg border border-brand-surface-border bg-white text-brand-navy-900 font-semibold focus:outline-none focus:ring-2 focus:ring-brand-gold-500"
+                className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-brand-surface-border bg-white text-brand-navy-900 font-semibold focus:outline-none focus:ring-2 focus:ring-brand-gold-500"
               >
-                <option value="">All Statuses (Active & Inactive)</option>
+                <option value="">All Statuses</option>
                 <option value="active">Active Members Only</option>
-                <option value="inactive">Inactive / Former Only</option>
+                <option value="inactive">Inactive / Former</option>
               </select>
             </div>
 
@@ -901,7 +941,7 @@ export default function AdminDashboardPage() {
               <select
                 value={memberPlanFilter}
                 onChange={(e) => setMemberPlanFilter(e.target.value)}
-                className="w-full px-3 py-1.5 text-xs rounded-lg border border-brand-surface-border bg-white text-brand-navy-900 font-semibold focus:outline-none focus:ring-2 focus:ring-brand-gold-500"
+                className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-brand-surface-border bg-white text-brand-navy-900 font-semibold focus:outline-none focus:ring-2 focus:ring-brand-gold-500"
               >
                 <option value="">All Shifts & Plans</option>
                 <option value="half-day-morning">Morning Shift (6 AM - 2 PM)</option>
@@ -910,14 +950,28 @@ export default function AdminDashboardPage() {
               </select>
             </div>
 
+            <div className="sm:col-span-2">
+              <select
+                value={memberFeeStatusFilter}
+                onChange={(e) => setMemberFeeStatusFilter(e.target.value)}
+                className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-brand-surface-border bg-white text-brand-navy-900 font-semibold focus:outline-none focus:ring-2 focus:ring-brand-gold-500"
+              >
+                <option value="">All Fee Statuses</option>
+                <option value="dues">⚠️ With Outstanding Dues</option>
+                <option value="advance">🟣 Advance Paid</option>
+                <option value="paid">✓ Current Cycle Settled</option>
+              </select>
+            </div>
+
             <div className="sm:col-span-1 flex items-center justify-end">
-              {(memberSearch || memberFilter || memberPlanFilter) && (
+              {(memberSearch || memberFilter || memberPlanFilter || memberFeeStatusFilter) && (
                 <button
                   type="button"
                   onClick={() => {
                     setMemberSearch('');
                     setMemberFilter('');
                     setMemberPlanFilter('');
+                    setMemberFeeStatusFilter('');
                   }}
                   className="px-2 py-1.5 rounded-lg text-xs font-semibold text-rose-700 hover:bg-rose-50 border border-rose-200 transition-colors"
                   title="Reset Filters"
@@ -937,6 +991,22 @@ export default function AdminDashboardPage() {
             <div className="py-12 text-center text-xs text-brand-navy-500">
               No membership records enrolled yet.
             </div>
+          ) : filteredMemberships.length === 0 ? (
+            <div className="py-12 text-center text-xs text-brand-navy-500 font-semibold">
+              No students match your search and filter criteria.
+              <button
+                type="button"
+                onClick={() => {
+                  setMemberSearch('');
+                  setMemberFilter('');
+                  setMemberPlanFilter('');
+                  setMemberFeeStatusFilter('');
+                }}
+                className="block mx-auto mt-2 text-brand-gold-600 hover:underline font-bold"
+              >
+                Reset Filters
+              </button>
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
@@ -952,20 +1022,7 @@ export default function AdminDashboardPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-brand-surface-border">
-                  {memberships
-                    .filter((m) => {
-                      if (memberFilter && m.status !== memberFilter) return false;
-                      if (memberPlanFilter && m.planId !== memberPlanFilter) return false;
-                      if (memberSearch.trim()) {
-                        const q = memberSearch.toLowerCase().trim();
-                        const nameMatch = (m.userId?.name || '').toLowerCase().includes(q);
-                        const emailMatch = (m.userId?.email || '').toLowerCase().includes(q);
-                        const phoneMatch = (m.userId?.phone || '').includes(q);
-                        if (!nameMatch && !emailMatch && !phoneMatch) return false;
-                      }
-                      return true;
-                    })
-                    .map((m) => (
+                  {filteredMemberships.map((m) => (
                       <tr key={m._id} className="hover:bg-brand-surface-muted/50 transition-colors">
                         <td className="py-3 px-4">
                           <span className="font-bold text-brand-navy-950 block">{m.userId?.name || 'Unknown'}</span>
@@ -1084,12 +1141,96 @@ export default function AdminDashboardPage() {
               </p>
             </div>
             <button
-              onClick={fetchLiveAttendance}
+              onClick={() => fetchLiveAttendance()}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-brand-surface-muted hover:bg-brand-surface-border text-brand-navy-800 transition-colors w-fit"
             >
               <RefreshCw className="w-3.5 h-3.5" />
               <span>Refresh</span>
             </button>
+          </div>
+
+          {/* Interactive Search & Filter Bar */}
+          <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 p-3 rounded-xl bg-brand-surface-muted/60 border border-brand-surface-border mb-4">
+            <div className="sm:col-span-5 relative">
+              <Search className="w-4 h-4 text-brand-navy-400 absolute left-3 top-2.5" />
+              <input
+                type="text"
+                value={attendanceSearch}
+                onChange={(e) => setAttendanceSearch(e.target.value)}
+                placeholder="Search student by name or email..."
+                className="w-full pl-9 pr-8 py-1.5 text-xs rounded-lg border border-brand-surface-border bg-white text-brand-navy-950 focus:outline-none focus:ring-2 focus:ring-brand-gold-500 font-medium"
+              />
+              {attendanceSearch && (
+                <button
+                  type="button"
+                  onClick={() => setAttendanceSearch('')}
+                  className="absolute right-2.5 top-2 text-brand-navy-400 hover:text-brand-navy-700"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            <div className="sm:col-span-3">
+              <select
+                value={attendanceShiftFilter}
+                onChange={(e) => setAttendanceShiftFilter(e.target.value)}
+                className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-brand-surface-border bg-white text-brand-navy-900 font-semibold focus:outline-none focus:ring-2 focus:ring-brand-gold-500"
+              >
+                <option value="">All Shifts & Plans</option>
+                <option value="morning">Morning Shift (6 AM - 2 PM)</option>
+                <option value="full day">Full Day Pass (6 AM - 10 PM)</option>
+                <option value="evening">Evening Shift (2 PM - 10 PM)</option>
+              </select>
+            </div>
+
+            <div className="sm:col-span-3 flex items-center gap-1.5">
+              <input
+                type="date"
+                value={attendanceDate}
+                onChange={(e) => {
+                  setAttendanceDate(e.target.value);
+                  fetchLiveAttendance(e.target.value);
+                }}
+                className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-brand-surface-border bg-white text-brand-navy-900 font-semibold focus:outline-none focus:ring-2 focus:ring-brand-gold-500"
+              />
+              {attendanceDate !== new Date().toISOString().split('T')[0] && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const today = new Date().toISOString().split('T')[0];
+                    setAttendanceDate(today);
+                    fetchLiveAttendance(today);
+                  }}
+                  className="px-2 py-1.5 rounded-lg text-xs font-semibold text-brand-gold-700 bg-brand-gold-50 border border-brand-gold-200 hover:bg-brand-gold-100 whitespace-nowrap"
+                  title="Reset to today"
+                >
+                  Today
+                </button>
+              )}
+            </div>
+
+            <div className="sm:col-span-1 flex items-center justify-end">
+              {(attendanceSearch || attendanceShiftFilter || attendanceFilter !== 'all' || attendanceDate !== new Date().toISOString().split('T')[0]) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAttendanceSearch('');
+                    setAttendanceShiftFilter('');
+                    setAttendanceFilter('all');
+                    const today = new Date().toISOString().split('T')[0];
+                    if (attendanceDate !== today) {
+                      setAttendanceDate(today);
+                      fetchLiveAttendance(today);
+                    }
+                  }}
+                  className="px-2 py-1.5 rounded-lg text-xs font-semibold text-rose-700 hover:bg-rose-50 border border-rose-200 transition-colors"
+                  title="Reset Filters"
+                >
+                  Reset
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Quick Filter Badges */}
@@ -1147,7 +1288,22 @@ export default function AdminDashboardPage() {
             </div>
           ) : !liveAttendance?.allRecords?.length ? (
             <div className="py-12 text-center text-xs text-brand-navy-500">
-              No students or attendance records found for today.
+              No students or attendance records found for this date.
+            </div>
+          ) : filteredAttendanceRecords.length === 0 ? (
+            <div className="py-12 text-center text-xs text-brand-navy-500 font-semibold">
+              No students match your search and filter criteria.
+              <button
+                type="button"
+                onClick={() => {
+                  setAttendanceSearch('');
+                  setAttendanceShiftFilter('');
+                  setAttendanceFilter('all');
+                }}
+                className="block mx-auto mt-2 text-brand-gold-600 hover:underline font-bold"
+              >
+                Reset Filters
+              </button>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -1162,52 +1318,45 @@ export default function AdminDashboardPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-brand-surface-border">
-                  {liveAttendance.allRecords
-                    .filter((att) => {
-                      if (attendanceFilter === 'present') return att.isPresent;
-                      if (attendanceFilter === 'inside') return att.inTime && !att.outTime;
-                      if (attendanceFilter === 'absent') return !att.isPresent;
-                      return true;
-                    })
-                    .map((att) => (
-                      <tr key={att._id} className="hover:bg-brand-surface-muted/50 transition-colors">
-                        <td className="py-3 px-4">
-                          <span className="font-bold text-brand-navy-950 block">
-                            {att.userId?.name || 'Unknown Student'}
+                  {filteredAttendanceRecords.map((att) => (
+                    <tr key={att._id} className="hover:bg-brand-surface-muted/50 transition-colors">
+                      <td className="py-3 px-4">
+                        <span className="font-bold text-brand-navy-950 block">
+                          {att.userId?.name || 'Unknown Student'}
+                        </span>
+                        <span className="text-[11px] text-brand-navy-500">{att.userId?.email}</span>
+                      </td>
+                      <td className="py-3 px-4 text-brand-navy-700">
+                        {att.planName || 'Full Day Pass'}
+                      </td>
+                      <td className="py-3 px-4 font-mono text-brand-navy-800">
+                        {att.inTime
+                          ? new Date(att.inTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
+                          : '—'}
+                      </td>
+                      <td className="py-3 px-4 font-mono text-brand-navy-800">
+                        {att.outTime
+                          ? new Date(att.outTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
+                          : '—'}
+                      </td>
+                      <td className="py-3 px-4">
+                        {att.inTime && !att.outTime ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
+                            PRESENT (Inside Now)
                           </span>
-                          <span className="text-[11px] text-brand-navy-500">{att.userId?.email}</span>
-                        </td>
-                        <td className="py-3 px-4 text-brand-navy-700">
-                          {att.planName || 'Full Day Pass'}
-                        </td>
-                        <td className="py-3 px-4 font-mono text-brand-navy-800">
-                          {att.inTime
-                            ? new Date(att.inTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
-                            : '—'}
-                        </td>
-                        <td className="py-3 px-4 font-mono text-brand-navy-800">
-                          {att.outTime
-                            ? new Date(att.outTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
-                            : '—'}
-                        </td>
-                        <td className="py-3 px-4">
-                          {att.inTime && !att.outTime ? (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
-                              PRESENT (Inside Now)
-                            </span>
-                          ) : att.outTime ? (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-teal-100 text-teal-800 border border-teal-300">
-                              ✓ PRESENT (Completed)
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
-                              ✗ ABSENT / NOT MARKED
-                            </span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
+                        ) : att.outTime ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-teal-100 text-teal-800 border border-teal-300">
+                            ✓ PRESENT (Completed)
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                            ✗ ABSENT / NOT MARKED
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -1286,7 +1435,7 @@ export default function AdminDashboardPage() {
 
             {/* Interactive Filter & Search Bar for Fees */}
             <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 p-3 rounded-xl bg-brand-surface-muted/60 border border-brand-surface-border mb-6">
-              <div className="sm:col-span-6 relative">
+              <div className={`${billingSubTab === 'dues' ? 'sm:col-span-5' : 'sm:col-span-4'} relative`}>
                 <Search className="w-4 h-4 text-brand-navy-400 absolute left-3 top-2.5" />
                 <input
                   type="text"
@@ -1313,7 +1462,7 @@ export default function AdminDashboardPage() {
               </div>
 
               {billingSubTab === 'payments' && (
-                <div className="sm:col-span-4">
+                <div className="sm:col-span-3">
                   <select
                     value={billingMethodFilter}
                     onChange={(e) => setBillingMethodFilter(e.target.value)}
@@ -1328,7 +1477,7 @@ export default function AdminDashboardPage() {
               )}
 
               {billingSubTab === 'invoices' && (
-                <div className="sm:col-span-4">
+                <div className="sm:col-span-3">
                   <select
                     value={billingInvoiceStatusFilter}
                     onChange={(e) => setBillingInvoiceStatusFilter(e.target.value)}
@@ -1343,20 +1492,28 @@ export default function AdminDashboardPage() {
                 </div>
               )}
 
-              {billingSubTab === 'dues' && (
-                <div className="sm:col-span-4 flex items-center text-xs text-brand-navy-600 font-medium px-2">
-                  <span className="text-[11px] text-brand-navy-500">Showing active members with outstanding dues</span>
-                </div>
-              )}
+              <div className={`${billingSubTab === 'dues' ? 'sm:col-span-5' : 'sm:col-span-3'}`}>
+                <select
+                  value={billingPlanFilter}
+                  onChange={(e) => setBillingPlanFilter(e.target.value)}
+                  className="w-full py-1.5 px-2.5 text-xs rounded-lg border border-brand-surface-border bg-white text-brand-navy-950 font-medium focus:outline-none focus:ring-2 focus:ring-brand-gold-500"
+                >
+                  <option value="">All Shifts & Plans</option>
+                  <option value="morning">Morning Shift (6 AM - 2 PM)</option>
+                  <option value="full day">Full Day Pass (6 AM - 10 PM)</option>
+                  <option value="evening">Evening Shift (2 PM - 10 PM)</option>
+                </select>
+              </div>
 
               <div className="sm:col-span-2 flex items-center justify-end">
-                {(billingSearch || billingMethodFilter || billingInvoiceStatusFilter) && (
+                {(billingSearch || billingMethodFilter || billingInvoiceStatusFilter || billingPlanFilter) && (
                   <button
                     type="button"
                     onClick={() => {
                       setBillingSearch('');
                       setBillingMethodFilter('');
                       setBillingInvoiceStatusFilter('');
+                      setBillingPlanFilter('');
                     }}
                     className="w-full py-1.5 text-xs font-bold text-rose-700 hover:bg-rose-50 rounded-lg transition-colors border border-rose-200 text-center"
                   >
