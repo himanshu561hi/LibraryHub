@@ -154,9 +154,10 @@ export default function StudentDashboardPage() {
   const isMemberActive = membership && membership.status === 'active';
   const todayAtt = dashboardData?.todayAttendance;
   const recentAtt = dashboardData?.recentAttendance || [];
-  const invoices = dashboardData?.financials?.invoices || [];
-  const payments = dashboardData?.financials?.payments || [];
-  const totalDuesPaise = dashboardData?.financials?.totalDuesInPaise || 0;
+  const financials = dashboardData?.financials || {};
+  const invoices = financials?.invoices || [];
+  const payments = financials?.payments || [];
+  const totalDuesPaise = financials?.totalDuesInPaise || 0;
 
   return (
     <div className="max-w-7xl mx-auto px-3.5 sm:px-6 lg:px-8 py-5 sm:py-8 w-full">
