@@ -4,10 +4,12 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import cookieParser from 'cookie-parser';
 import config from './config/index.js';
+import { connectDatabase } from './config/db.js';
 import { standardLimiter } from './middlewares/rateLimiter.js';
 import errorHandler from './middlewares/errorHandler.js';
 import apiRouter from './routes/index.js';
 import { errorResponse } from './utils/response.js';
+import logger from './utils/logger.js';
 
 const app = express();
 
@@ -18,13 +20,30 @@ app.use(
   })
 );
 
-// CORS configuration with explicit allowlist
+// CORS configuration with explicit allowlist & Vercel/Netlify preview domain support
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (e.g. mobile apps, curl, server-to-server)
+      // Allow requests with no origin (e.g. mobile apps, curl, server-to-server, cron jobs)
       if (!origin) return callback(null, true);
-      if (config.corsOrigins.includes(origin) || config.env === 'development') {
+
+      let isAllowed =
+        config.corsOrigins.includes(origin) ||
+        config.corsOrigins.includes('*') ||
+        config.env === 'development';
+
+      if (!isAllowed) {
+        try {
+          const hostname = new URL(origin).hostname;
+          if (hostname.endsWith('.vercel.app') || hostname.endsWith('.netlify.app')) {
+            isAllowed = true;
+          }
+        } catch {
+          // invalid URL format, ignore
+        }
+      }
+
+      if (isAllowed) {
         return callback(null, true);
       }
       return callback(new Error(`CORS error: Origin ${origin} not permitted.`));
@@ -39,6 +58,24 @@ app.use(
 app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: true, limit: '2mb' }));
 app.use(cookieParser());
+
+// Database connection assurance for Serverless (Vercel) & traditional servers
+app.use(async (req, res, next) => {
+  // Allow health liveness to pass through immediately
+  if (req.originalUrl === '/api/v1/health' || req.originalUrl === '/api/v1/health/') {
+    return next();
+  }
+  try {
+    await connectDatabase();
+    next();
+  } catch (err) {
+    logger.error(`Database connection error in request: ${err.message}`);
+    if (req.originalUrl.includes('/health')) {
+      return next();
+    }
+    return errorResponse(res, 'Database connection unavailable', 503, 'SERVICE_UNAVAILABLE');
+  }
+});
 
 // HTTP Request Logging
 if (config.env !== 'test') {

@@ -199,19 +199,6 @@ export default function LoginPage() {
               <span>Continue with Google</span>
             </button>
           )}
-
-          {/* Quick Offline Dev Helper Link */}
-          {import.meta.env.DEV && gsiReady && (
-            <div className="text-center pt-1">
-              <button
-                type="button"
-                onClick={handleTestStudentLogin}
-                className="text-[11px] text-brand-navy-400 hover:text-brand-navy-600 transition-colors underline"
-              >
-                Offline Dev 1-Click Demo Login
-              </button>
-            </div>
-          )}
         </div>
 
         {/* Footer Admin Links */}

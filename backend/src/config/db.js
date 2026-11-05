@@ -2,31 +2,43 @@ import mongoose from 'mongoose';
 import config from './index.js';
 import logger from '../utils/logger.js';
 
-let isConnected = false;
+let cached = global.mongoose;
+
+if (!cached) {
+  cached = global.mongoose = { conn: null, promise: null };
+}
 
 export const connectDatabase = async () => {
-  if (isConnected) {
-    logger.debug('Using existing MongoDB connection');
-    return mongoose.connection;
+  if (cached.conn && mongoose.connection.readyState === 1) {
+    return cached.conn;
+  }
+
+  if (!cached.promise) {
+    const opts = {
+      bufferCommands: false,
+      serverSelectionTimeoutMS: 8000,
+      ...config.mongo.options,
+    };
+
+    logger.debug('Establishing connection to MongoDB...');
+    cached.promise = mongoose.connect(config.mongo.uri, opts).then((m) => {
+      logger.info(`MongoDB connected successfully: ${m.connection.host}/${m.connection.name}`);
+      return m.connection;
+    });
   }
 
   try {
-    const conn = await mongoose.connect(config.mongo.uri, config.mongo.options);
-    isConnected = true;
-    logger.info(`MongoDB connected successfully: ${conn.connection.host}/${conn.connection.name}`);
-    return conn.connection;
+    cached.conn = await cached.promise;
+    return cached.conn;
   } catch (error) {
+    cached.promise = null;
     logger.error(`MongoDB connection failed: ${error.message}`);
-    // In production we should exit, but in test/dev we allow graceful degradation
-    if (config.env === 'production') {
-      process.exit(1);
-    }
     throw error;
   }
 };
 
 mongoose.connection.on('disconnected', () => {
-  isConnected = false;
+  if (cached) cached.conn = null;
   logger.warn('MongoDB connection disconnected');
 });
 
@@ -35,9 +47,10 @@ mongoose.connection.on('error', (err) => {
 });
 
 export const closeDatabase = async () => {
-  if (isConnected) {
+  if (cached && cached.conn) {
     await mongoose.connection.close();
-    isConnected = false;
+    cached.conn = null;
+    cached.promise = null;
     logger.info('MongoDB connection closed');
   }
 };

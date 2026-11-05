@@ -1,0 +1,16 @@
+{
+  "version": 2,
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/api/index.js"
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/v1/jobs/auto-checkout",
+      "schedule": "29 18 * * *"
+    }
+  ]
+}
+

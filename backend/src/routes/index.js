@@ -7,6 +7,7 @@ import billingRoutes from './billing.routes.js';
 import attendanceRoutes from './attendance.routes.js';
 import emailRoutes from './email.routes.js';
 import adminRoutes from './admin.routes.js';
+import jobsRoutes from './jobs.routes.js';
 
 const router = Router();
 
@@ -33,5 +34,8 @@ router.use('/email', emailRoutes);
 
 // Phase 09: Admin Operations, Reports & Audit endpoints
 router.use('/admin', adminRoutes);
+
+// Serverless / Scheduled Background Jobs endpoints
+router.use('/jobs', jobsRoutes);
 
 export default router;
