@@ -3,7 +3,12 @@
  * Uses native fetch with standard error handling, query parameters, auth token injection, and timeout support.
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api/v1';
+const rawBaseUrl = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api/v1').trim().replace(/\/$/, '');
+const API_BASE_URL = rawBaseUrl.endsWith('/api/v1')
+  ? rawBaseUrl
+  : rawBaseUrl.endsWith('/api')
+    ? `${rawBaseUrl}/v1`
+    : `${rawBaseUrl}/api/v1`;
 const DEFAULT_TIMEOUT_MS = 15000;
 
 export class ApiError extends Error {

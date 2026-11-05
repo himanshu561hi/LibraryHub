@@ -83,10 +83,12 @@ if (config.env !== 'test') {
 }
 
 // Global rate limiter
-app.use('/api', standardLimiter);
+app.use(standardLimiter);
 
-// Mount API v1 router
+// Mount API router under standard versioned path, /api, and root fallback for flexible client base URLs
 app.use('/api/v1', apiRouter);
+app.use('/api', apiRouter);
+app.use('/', apiRouter);
 
 // 404 Route handler for undefined endpoints
 app.use('*', (req, res) => {
