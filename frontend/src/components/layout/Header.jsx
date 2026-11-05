@@ -98,7 +98,7 @@ export default function Header() {
         aria-hidden="true"
       />
 
-      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-4 xl:px-8">
         <div className="flex items-center justify-between h-16 sm:h-[68px]">
           
           {/* Brand Logo */}
@@ -110,7 +110,7 @@ export default function Header() {
             <img
               src={libraryImages.logo.src}
               alt="Library Hub Nawalpur"
-              className="h-8 xs:h-9 sm:h-10 md:h-[42px] w-auto max-w-[180px] xs:max-w-[210px] sm:max-w-[250px] md:max-w-[280px] object-contain mix-blend-multiply transition-transform group-hover:scale-105"
+              className="h-8 xs:h-9 sm:h-10 md:h-[40px] w-auto max-w-[170px] xs:max-w-[190px] sm:max-w-[220px] lg:max-w-[200px] xl:max-w-[260px] object-contain mix-blend-multiply transition-transform group-hover:scale-105"
             />
             <span className="hidden sm:inline-block text-[10px] font-bold text-brand-gold-700 bg-brand-gold-50 px-2 py-0.5 rounded border border-brand-gold-200 tracking-wider uppercase shrink-0">
               Nawalpur
@@ -119,7 +119,7 @@ export default function Header() {
 
           {/* Desktop Streamlined Navigation */}
           <nav
-            className="hidden lg:flex items-center gap-1 p-1 rounded-xl bg-brand-surface-muted/80 border border-brand-surface-border"
+            className="hidden lg:flex items-center gap-0.5 xl:gap-1 p-1 rounded-xl bg-brand-surface-muted/80 border border-brand-surface-border shrink-0"
             aria-label="Main Navigation"
           >
             {primaryNavLinks.slice(0, 4).map((link) => (
@@ -127,7 +127,7 @@ export default function Header() {
                 key={link.path}
                 to={link.path}
                 className={({ isActive }) =>
-                  `px-3.5 py-1.5 rounded-lg text-sm font-semibold transition-all ${
+                  `px-2.5 xl:px-3.5 py-1.5 rounded-lg text-xs xl:text-sm font-semibold whitespace-nowrap transition-all ${
                     isActive
                       ? 'text-brand-navy-950 bg-white shadow-soft-sm font-bold'
                       : 'text-brand-navy-700 hover:text-brand-navy-950 hover:bg-white/60'
@@ -150,13 +150,13 @@ export default function Header() {
                 onClick={() => setMoreDropdownOpen(!moreDropdownOpen)}
                 aria-expanded={moreDropdownOpen}
                 aria-haspopup="true"
-                className={`inline-flex items-center gap-1 px-3.5 py-1.5 rounded-lg text-sm font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-gold-500 ${
+                className={`inline-flex items-center gap-1 px-2.5 xl:px-3.5 py-1.5 rounded-lg text-xs xl:text-sm font-semibold whitespace-nowrap transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-gold-500 ${
                   isMoreActive || moreDropdownOpen
                     ? 'text-brand-navy-950 bg-white shadow-soft-sm font-bold'
                     : 'text-brand-navy-700 hover:text-brand-navy-950 hover:bg-white/60'
                 }`}
               >
-                <span>More</span>
+                <span className="whitespace-nowrap">More</span>
                 <ChevronDown
                   className={`w-3.5 h-3.5 transition-transform duration-200 ${
                     moreDropdownOpen ? 'rotate-180 text-brand-navy-950' : 'text-brand-navy-600'
@@ -214,7 +214,7 @@ export default function Header() {
             <NavLink
               to="/contact"
               className={({ isActive }) =>
-                `px-3.5 py-1.5 rounded-lg text-sm font-semibold transition-all ${
+                `px-2.5 xl:px-3.5 py-1.5 rounded-lg text-xs xl:text-sm font-semibold whitespace-nowrap transition-all ${
                   isActive
                     ? 'text-brand-navy-950 bg-white shadow-soft font-bold'
                     : 'text-brand-navy-800 hover:text-brand-navy-950 hover:bg-white/80'
@@ -226,12 +226,12 @@ export default function Header() {
           </nav>
 
           {/* Desktop Right CTA Buttons */}
-          <div className="hidden lg:flex items-center gap-3">
+          <div className="hidden lg:flex items-center gap-2 xl:gap-3 shrink-0">
             {isAuthenticated ? (
               <div className="flex items-center gap-2">
                 <Link
                   to={isAdmin ? '/admin' : '/dashboard'}
-                  className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all shadow-soft-sm hover:shadow-soft border ${
+                  className={`inline-flex items-center gap-2 px-3 xl:px-3.5 py-1.5 xl:py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all shadow-soft-sm hover:shadow-soft border ${
                     location.pathname.startsWith('/admin') || location.pathname.startsWith('/dashboard')
                       ? 'bg-brand-navy-950 text-white border-brand-navy-950'
                       : 'bg-white hover:bg-brand-surface-muted text-brand-navy-950 border-brand-surface-border'
@@ -239,31 +239,31 @@ export default function Header() {
                   title={user?.name || (isAdmin ? 'Admin Console' : 'Student Portal')}
                 >
                   <div
-                    className={`w-5 h-5 rounded-full flex items-center justify-center font-bold text-[10px] ${
+                    className={`w-5 h-5 rounded-full flex items-center justify-center font-bold text-[10px] shrink-0 ${
                       isAdmin ? 'bg-brand-gold-500 text-brand-navy-950' : 'bg-brand-navy-900 text-white'
                     }`}
                   >
                     {user?.name ? user.name.charAt(0).toUpperCase() : (isAdmin ? 'A' : 'S')}
                   </div>
-                  <span>{isAdmin ? 'Admin Console' : 'My Portal'}</span>
+                  <span className="whitespace-nowrap">{isAdmin ? 'Admin Console' : 'My Portal'}</span>
                 </Link>
               </div>
             ) : (
               <>
                 <Link
                   to="/login"
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-brand-navy-800 hover:text-brand-navy-950 hover:bg-white/80 transition-colors"
+                  className="inline-flex items-center gap-1.5 px-2.5 xl:px-3.5 py-1.5 xl:py-2 rounded-xl text-xs font-bold text-brand-navy-800 hover:text-brand-navy-950 hover:bg-white/80 whitespace-nowrap transition-colors shrink-0"
                 >
-                  <LogIn className="w-3.5 h-3.5 text-brand-gold-600" />
-                  <span>Student Login</span>
+                  <LogIn className="w-3.5 h-3.5 text-brand-gold-600 shrink-0" />
+                  <span className="whitespace-nowrap">Student Login</span>
                 </Link>
 
                 <Link
                   to="/membership"
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-brand-navy-900 text-white hover:bg-brand-navy-800 active:scale-[0.98] transition-all shadow-soft-sm hover:shadow-soft"
+                  className="inline-flex items-center gap-1.5 xl:gap-2 px-3 xl:px-4 py-1.5 xl:py-2 rounded-xl text-xs font-bold bg-brand-navy-900 text-white hover:bg-brand-navy-800 active:scale-[0.98] whitespace-nowrap transition-all shadow-soft-sm hover:shadow-soft shrink-0"
                 >
-                  <span>Explore Membership</span>
-                  <ArrowRight className="w-3.5 h-3.5 text-brand-gold-400" />
+                  <span className="whitespace-nowrap">Explore Membership</span>
+                  <ArrowRight className="w-3.5 h-3.5 text-brand-gold-400 shrink-0" />
                 </Link>
               </>
             )}
