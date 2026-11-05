@@ -17,8 +17,8 @@ export default function ProtectedRoute({ children, allowedRoles }) {
   }
 
   if (!isAuthenticated) {
-    // Redirect to login page and remember original destination
-    const target = allowedRoles?.includes('admin') || allowedRoles?.includes('super_admin')
+    // If attempting to access an admin route, redirect to /admin/login; otherwise student login /login
+    const target = location.pathname.startsWith('/admin')
       ? '/admin/login'
       : '/login';
     return <Navigate to={target} state={{ from: location }} replace />;
