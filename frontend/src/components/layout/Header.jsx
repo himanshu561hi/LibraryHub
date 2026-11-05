@@ -247,16 +247,6 @@ export default function Header() {
                   </div>
                   <span>{isAdmin ? 'Admin Console' : 'My Portal'}</span>
                 </Link>
-
-                <button
-                  type="button"
-                  onClick={logout}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-red-700 bg-red-50 hover:bg-red-100/80 active:scale-[0.98] transition-all border border-red-200/80 shadow-soft-sm"
-                  title="Sign Out of Library Hub"
-                >
-                  <LogOut className="w-3.5 h-3.5" />
-                  <span>Sign Out</span>
-                </button>
               </div>
             ) : (
               <>

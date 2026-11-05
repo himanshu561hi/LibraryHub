@@ -33,6 +33,7 @@ router.post('/invoices/generate-cycle', requireRole('admin', 'super_admin'), asy
 router.post('/payments', requireRole('admin', 'super_admin'), recordPayment);
 router.get('/payments', listPayments);
 router.post('/payments/:id/reverse', requireRole('admin', 'super_admin'), reversePayment);
+router.patch('/payments/:id/reverse', requireRole('admin', 'super_admin'), reversePayment);
 
 // Dues overview (Admin only)
 router.get('/dues', requireRole('admin', 'super_admin'), getOutstandingDues);

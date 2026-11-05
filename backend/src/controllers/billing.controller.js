@@ -303,15 +303,13 @@ export async function reversePayment(req, res, next) {
       return errorResponse(res, 'Payment has already been reversed', 400);
     }
 
-    const invoice = await FeeInvoice.findById(payment.invoiceId);
-    if (!invoice) {
-      return errorResponse(res, 'Associated invoice not found', 404);
+    const invoice = payment.invoiceId ? await FeeInvoice.findById(payment.invoiceId) : null;
+    if (invoice) {
+      invoice.amountPaidInPaise = Math.max(0, invoice.amountPaidInPaise - payment.amountInPaise);
+      invoice.balanceInPaise = invoice.balanceInPaise + payment.amountInPaise;
+      invoice.status = invoice.amountPaidInPaise === 0 ? 'unpaid' : 'partially_paid';
+      await invoice.save();
     }
-
-    invoice.amountPaidInPaise = Math.max(0, invoice.amountPaidInPaise - payment.amountInPaise);
-    invoice.balanceInPaise = invoice.balanceInPaise + payment.amountInPaise;
-    invoice.status = invoice.amountPaidInPaise === 0 ? 'unpaid' : 'partially_paid';
-    await invoice.save();
 
     const adminId = (req.user && req.user._id)
       ? req.user._id
@@ -327,9 +325,9 @@ export async function reversePayment(req, res, next) {
 
     await AuditLog.create({
       actor: {
-        id: req.user._id,
-        email: req.user.email,
-        role: req.user.role,
+        id: req.user?._id || adminId,
+        email: req.user?.email || 'admin@libraryhub.in',
+        role: req.user?.role || 'admin',
       },
       action: 'PAYMENT_REVERSE',
       targetEntity: 'Payment',
