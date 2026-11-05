@@ -46,6 +46,15 @@ const userSchema = new mongoose.Schema(
       default: false,
       index: true,
     },
+    isActive: {
+      type: Boolean,
+      default: true,
+      index: true,
+    },
+    deactivationReason: {
+      type: String,
+      default: null,
+    },
     currentMembership: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Membership',

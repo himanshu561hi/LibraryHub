@@ -152,4 +152,4 @@ The root `netlify.toml` file automatically builds from `frontend`:
 - **Location**: Main Road, Nawalpur (Opposite Kali Mandir), Salempur, Deoria, Uttar Pradesh – 274509
 - **Phone**: [+91 89339 08027](tel:+918933908027)
 - **Instagram**: [@libraryhub.in](https://www.instagram.com/libraryhub.in/)
-- **Operating Hours**: 6:00 AM – 10:00 PM (All 7 Days Open)
+- **Operating Hours**: 24 Hours (All 7 Days Open · Day & Night Shifts)

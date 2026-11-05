@@ -151,10 +151,10 @@ export async function createMembership(req, res, next) {
       phone,
       joiningDate,
       monthlyFeeInPaise,
-      planId = 'full-day-pass',
-      planName = 'Full Day Pass (Study Freedom)',
-      slotType = 'FULL_DAY',
-      shiftTimings = '6:00 AM - 10:00 PM',
+      planId = 'day-shift',
+      planName = 'Day Shift Plan (7:00 AM – 8:00 PM)',
+      slotType = 'DAY',
+      shiftTimings = '7:00 AM - 8:00 PM',
       notes = '',
       initialPaymentInPaise = 0,
       paymentMethod = 'CASH',
@@ -162,7 +162,7 @@ export async function createMembership(req, res, next) {
     } = req.body;
 
     if (!monthlyFeeInPaise || monthlyFeeInPaise <= 0) {
-      return errorResponse(res, 'Monthly fee must be a positive integer in paise (e.g. 100000 for ₹1000)', 400);
+      return errorResponse(res, 'Monthly fee must be a positive integer in paise (e.g. 50000 for ₹500)', 400);
     }
 
     const parsedJoiningDate = joiningDate ? new Date(joiningDate) : new Date();
@@ -334,7 +334,11 @@ export async function deactivateMembership(req, res, next) {
     membership.deactivatedBy = req.user._id;
     await membership.save();
 
-    await User.findByIdAndUpdate(membership.userId, { isMember: false });
+    await User.findByIdAndUpdate(membership.userId, {
+      isMember: false,
+      isActive: false,
+      deactivationReason: reason.trim(),
+    });
 
     await AuditLog.create({
       actor: {
@@ -403,7 +407,12 @@ export async function reactivateMembership(req, res, next) {
     membership.deactivatedByAdminId = null;
     await membership.save();
 
-    await User.findByIdAndUpdate(membership.userId, { isMember: true, currentMembership: membership._id });
+    await User.findByIdAndUpdate(membership.userId, {
+      isMember: true,
+      isActive: true,
+      deactivationReason: null,
+      currentMembership: membership._id,
+    });
 
     await AuditLog.create({
       actor: {

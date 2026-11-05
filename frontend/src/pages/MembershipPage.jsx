@@ -51,7 +51,7 @@ export default function MembershipPage() {
             <div>
               <span className="font-semibold text-white">Transparent Pricing:</span>
               <p className="text-brand-navy-300 mt-0.5">
-                Affordable monthly plans starting at just ₹600/month. No online transactions; reserve your seat and complete registration at the desk.
+                Affordable monthly plans starting at just ₹500/month. No online transactions; reserve your seat and complete registration at the desk.
               </p>
             </div>
           </div>
@@ -88,7 +88,7 @@ export default function MembershipPage() {
               Detailed Shift Comparison
             </h2>
             <p className="text-xs sm:text-sm text-brand-navy-600">
-              Compare features across morning, full-day, and evening study shifts.
+              Compare features across Day (7 AM - 8 PM), 24 Hours, and Night (8 PM - 8 AM) study shifts.
             </p>
           </div>
 
@@ -97,17 +97,17 @@ export default function MembershipPage() {
               <thead>
                 <tr className="border-b border-brand-surface-border text-brand-navy-900 bg-brand-surface-muted/50">
                   <th className="py-3 px-4 font-semibold">Feature / Amenity</th>
-                  <th className="py-3 px-4 font-semibold">Morning Shift</th>
-                  <th className="py-3 px-4 font-semibold text-brand-gold-700 bg-brand-gold-50/50">Full Day (Popular)</th>
-                  <th className="py-3 px-4 font-semibold">Evening Shift</th>
+                  <th className="py-3 px-4 font-semibold">Day Shift (7 AM – 8 PM)</th>
+                  <th className="py-3 px-4 font-semibold text-brand-gold-700 bg-brand-gold-50/50">24 Hours (Most Popular)</th>
+                  <th className="py-3 px-4 font-semibold">Night Shift (8 PM – 8 AM)</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-brand-surface-border text-brand-navy-700">
                 <tr>
                   <td className="py-3 px-4 font-medium text-brand-navy-950">Daily Study Hours</td>
-                  <td className="py-3 px-4">8 Hours (6 AM - 2 PM)</td>
-                  <td className="py-3 px-4 font-semibold text-brand-navy-900 bg-brand-gold-50/20">16 Hours (6 AM - 10 PM)</td>
-                  <td className="py-3 px-4">8 Hours (2 PM - 10 PM)</td>
+                  <td className="py-3 px-4">13 Hours (7:00 AM – 8:00 PM)</td>
+                  <td className="py-3 px-4 font-semibold text-brand-navy-900 bg-brand-gold-50/20">24 Hours (Round the Clock)</td>
+                  <td className="py-3 px-4">12 Hours (8:00 PM – 8:00 AM)</td>
                 </tr>
                 <tr>
                   <td className="py-3 px-4 font-medium text-brand-navy-950">Reserved Fixed Desk</td>
@@ -141,8 +141,8 @@ export default function MembershipPage() {
                 </tr>
                 <tr>
                   <td className="py-3 px-4 font-medium text-brand-navy-950">Monthly Admission Fee</td>
-                  <td className="py-3 px-4 text-brand-navy-950 font-bold">₹600 / month</td>
-                  <td className="py-3 px-4 font-bold text-brand-gold-700 bg-brand-gold-50/20">₹1000 / month</td>
+                  <td className="py-3 px-4 text-brand-navy-950 font-bold">₹500 / month</td>
+                  <td className="py-3 px-4 font-bold text-brand-gold-700 bg-brand-gold-50/20">₹800 / month</td>
                   <td className="py-3 px-4 text-brand-navy-950 font-bold">₹600 / month</td>
                 </tr>
               </tbody>
@@ -175,7 +175,7 @@ export default function MembershipPage() {
                 Select Your Shift & Desk
               </h3>
               <p className="text-xs sm:text-sm text-brand-navy-600 leading-relaxed">
-                Pick your preferred study hours (Morning, Evening, or Full Day) and choose an available desk number.
+                Pick your preferred study hours (Day, Night, or 24 Hours) and choose an available desk number.
               </p>
             </div>
 

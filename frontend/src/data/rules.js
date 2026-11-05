@@ -61,7 +61,7 @@ export const rulesData = [
     id: 7,
     category: 'Entry & Timing',
     title: 'Punctuality & Shift Compliance',
-    description: 'Members are requested to adhere strictly to their registered shift timings (Morning, Evening, or Full Day). Please vacate the desk promptly at shift conclusion so the incoming shift member is not delayed.',
+    description: 'Members are requested to adhere strictly to their registered shift timings (Day Shift 7 AM – 8 PM, Night Shift 8 PM – 8 AM, or 24 Hours). Please vacate the desk promptly at shift conclusion so the incoming shift member is not delayed.',
     severity: 'Standard Rule',
   },
   {

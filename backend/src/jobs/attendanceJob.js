@@ -1,4 +1,4 @@
-import { Attendance } from '../models/index.js';
+import { Attendance, Membership, User, AuditLog } from '../models/index.js';
 import { getKolkataDateKey } from '../utils/attendanceCode.js';
 import logger from '../utils/logger.js';
 
@@ -52,7 +52,121 @@ export async function runAutoCheckOut(targetDateKey = null) {
   }
 }
 
+/**
+ * Check if a student member has missed attendance for 2 or more consecutive days.
+ * If absent for >= 2 days, immediately marks their membership as inactive,
+ * sets user.isMember = false and user.isActive = false, and logs an AuditLog entry.
+ *
+ * @param {Object} user - User document or populated user
+ * @param {Object} membership - Membership document
+ * @returns {Promise<{ deactivated: boolean, daysAbsent: number, reason: string | null }>}
+ */
+export async function checkAndDeactivateIfAbsent(user, membership) {
+  try {
+    if (!membership || membership.status !== 'active') {
+      return { deactivated: false, daysAbsent: 0, reason: null };
+    }
+
+    const todayKey = getKolkataDateKey(); // 'YYYY-MM-DD' in Asia/Kolkata
+
+    // Find the latest attendance record for this user
+    const lastAttendance = await Attendance.findOne({ userId: user._id || user.id })
+      .sort({ date: -1 })
+      .lean();
+
+    let lastActiveDateKey;
+    if (lastAttendance && lastAttendance.date) {
+      lastActiveDateKey = lastAttendance.date;
+    } else {
+      // If student has never marked attendance yet, baseline from their reactivation or joining date
+      const baselineDate = membership.reactivatedAt || membership.joiningDate || membership.createdAt || new Date();
+      lastActiveDateKey = getKolkataDateKey(new Date(baselineDate));
+    }
+
+    // Calculate calendar days difference in Asia/Kolkata
+    const [y1, m1, d1] = lastActiveDateKey.split('-').map(Number);
+    const [y2, m2, d2] = todayKey.split('-').map(Number);
+    const date1Utc = Date.UTC(y1, m1 - 1, d1);
+    const date2Utc = Date.UTC(y2, m2 - 1, d2);
+    const daysAbsent = Math.floor((date2Utc - date1Utc) / (24 * 60 * 60 * 1000));
+
+    // Rule: Missing attendance for 2 consecutive days triggers auto-deactivation
+    if (daysAbsent >= 2) {
+      const reason = `Auto-deactivated: No attendance marked for ${daysAbsent} consecutive days (last active: ${lastActiveDateKey})`;
+
+      membership.status = 'inactive';
+      membership.effectiveDeactivationDate = new Date();
+      membership.deactivationReason = reason;
+      await membership.save();
+
+      await User.findByIdAndUpdate(user._id || user.id, {
+        isMember: false,
+        isActive: false,
+        deactivationReason: reason,
+      });
+
+      // Audit Log for traceability
+      try {
+        await AuditLog.create({
+          actor: {
+            id: null,
+            email: 'system@libraryhub.in',
+            role: 'system',
+          },
+          action: 'AUTO_DEACTIVATE_ABSENCE',
+          targetEntity: 'Membership',
+          targetId: membership._id,
+          beforeState: { status: 'active' },
+          afterState: { status: 'inactive', effectiveDeactivationDate: membership.effectiveDeactivationDate },
+          reason,
+        });
+      } catch (auditErr) {
+        // Suppress audit log error in non-critical scenarios
+      }
+
+      logger.warn(`Student ${user.email || user._id} automatically DEACTIVATED due to ${daysAbsent} days of missing attendance.`);
+      return { deactivated: true, daysAbsent, reason };
+    }
+
+    return { deactivated: false, daysAbsent, reason: null };
+  } catch (err) {
+    logger.error(`Error in checkAndDeactivateIfAbsent for user ${user._id || user.id}: ${err.message}`);
+    return { deactivated: false, daysAbsent: 0, error: err.message };
+  }
+}
+
+/**
+ * Auto-Inactivate Absent Students Job:
+ * Scans all currently active memberships and deactivates any student
+ * who hasn't marked attendance for 2 consecutive days.
+ */
+export async function runAutoInactivateAbsentStudents() {
+  try {
+    const activeMemberships = await Membership.find({ status: 'active' }).populate('userId');
+    if (!activeMemberships || activeMemberships.length === 0) {
+      return { deactivatedCount: 0 };
+    }
+
+    let deactivatedCount = 0;
+    for (const membership of activeMemberships) {
+      if (!membership.userId) continue;
+      const result = await checkAndDeactivateIfAbsent(membership.userId, membership);
+      if (result.deactivated) {
+        deactivatedCount++;
+      }
+    }
+
+    logger.info(`Auto-inactivation job completed: ${deactivatedCount} student(s) deactivated due to 2+ days missing attendance.`);
+    return { deactivatedCount };
+  } catch (err) {
+    logger.error(`Error in runAutoInactivateAbsentStudents: ${err.message}`, { error: err });
+    return { deactivatedCount: 0, error: err.message };
+  }
+}
+
 export default {
   runAutoCheckOut,
+  checkAndDeactivateIfAbsent,
+  runAutoInactivateAbsentStudents,
 };
 

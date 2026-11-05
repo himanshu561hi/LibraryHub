@@ -78,8 +78,8 @@ export default function AdminDashboardPage() {
     name: '',
     email: '',
     phone: '',
-    planType: 'full_day',
-    monthlyFee: 1000,
+    planType: 'day_shift',
+    monthlyFee: 500,
     initialPayment: 0,
     paymentMethod: 'CASH',
     referenceNumber: '',
@@ -109,12 +109,12 @@ export default function AdminDashboardPage() {
   const [showEditMemberModal, setShowEditMemberModal] = useState(false);
   const [editingMembership, setEditingMembership] = useState(null);
   const [editForm, setEditForm] = useState({
-    planType: 'full_day',
-    planId: 'full-day-pass',
-    planName: 'Full Day Pass (Study Freedom)',
-    slotType: 'FULL_DAY',
-    shiftTimings: '6:00 AM - 10:00 PM',
-    monthlyFee: 1000,
+    planType: 'day_shift',
+    planId: 'day-shift',
+    planName: 'Day Shift Plan (7:00 AM – 8:00 PM)',
+    slotType: 'DAY',
+    shiftTimings: '7:00 AM - 8:00 PM',
+    monthlyFee: 500,
     updateCurrentUnpaidInvoice: true,
     reason: '',
   });
@@ -309,17 +309,18 @@ export default function AdminDashboardPage() {
   const handleOpenEditModal = (m) => {
     setEditingMembership(m);
     setEditError('');
-    let pType = 'full_day';
-    if (m.planId?.includes('morning')) pType = 'morning';
-    else if (m.planId?.includes('evening')) pType = 'evening';
+    let pType = 'day_shift';
+    if (m.planId?.includes('day-shift') || m.planId?.includes('morning')) pType = 'day_shift';
+    else if (m.planId?.includes('night') || m.planId?.includes('evening')) pType = 'night_shift';
+    else if (m.planId?.includes('24') || m.planId?.includes('full-day')) pType = 'full_day_24h';
     else if (m.planId === 'custom') pType = 'custom';
 
     setEditForm({
       planType: pType,
-      planId: m.planId || 'full-day-pass',
-      planName: m.planName || 'Full Day Pass',
-      slotType: m.slotType || 'FULL_DAY',
-      shiftTimings: m.shiftTimings || '6:00 AM - 10:00 PM',
+      planId: m.planId || 'day-shift',
+      planName: m.planName || 'Day Shift Plan (7:00 AM – 8:00 PM)',
+      slotType: m.slotType || 'DAY',
+      shiftTimings: m.shiftTimings || '7:00 AM - 8:00 PM',
       monthlyFee: (m.monthlyFeeInPaise || 0) / 100,
       updateCurrentUnpaidInvoice: true,
       reason: '',
@@ -330,26 +331,26 @@ export default function AdminDashboardPage() {
   // Handle Plan Type selection inside Edit Modal
   const handleEditPlanSelect = (type) => {
     const planMeta = {
-      morning: {
-        planId: 'half-day-morning',
-        planName: 'Morning Shift (Early Riser)',
-        slotType: 'MORNING',
-        shiftTimings: '6:00 AM - 2:00 PM',
+      day_shift: {
+        planId: 'day-shift',
+        planName: 'Day Shift Plan (7:00 AM – 8:00 PM)',
+        slotType: 'DAY',
+        shiftTimings: '7:00 AM - 8:00 PM',
+        fee: 500,
+      },
+      night_shift: {
+        planId: 'night-shift',
+        planName: 'Night Shift Plan (8:00 PM – 8:00 AM)',
+        slotType: 'NIGHT',
+        shiftTimings: '8:00 PM - 8:00 AM',
         fee: 600,
       },
-      full_day: {
-        planId: 'full-day-pass',
-        planName: 'Full Day Pass (Study Freedom)',
-        slotType: 'FULL_DAY',
-        shiftTimings: '6:00 AM - 10:00 PM',
-        fee: 1000,
-      },
-      evening: {
-        planId: 'half-day-evening',
-        planName: 'Evening Shift (Night Owl Focus)',
-        slotType: 'EVENING',
-        shiftTimings: '2:00 PM - 10:00 PM',
-        fee: 600,
+      full_day_24h: {
+        planId: 'full-day-24h',
+        planName: '24 Hours Dedicated Plan',
+        slotType: 'TWENTY_FOUR_HOURS',
+        shiftTimings: '24 Hours (Round the Clock)',
+        fee: 800,
       },
     }[type];
 
@@ -410,9 +411,11 @@ export default function AdminDashboardPage() {
 
   // Handle Plan Type selection during enrollment
   const handleEnrollPlanSelect = (type) => {
-    let fee = 1000;
-    if (type === 'morning' || type === 'evening') {
+    let fee = 500;
+    if (type === 'night_shift') {
       fee = 600;
+    } else if (type === 'full_day_24h') {
+      fee = 800;
     }
     setEnrollForm((prev) => {
       // Only auto-update initialPayment if user previously had it matching the full monthly fee.
@@ -436,29 +439,29 @@ export default function AdminDashboardPage() {
 
     try {
       const planMeta = {
-        morning: {
-          planId: 'half-day-morning',
-          planName: 'Morning Shift (Early Riser)',
-          slotType: 'MORNING',
-          shiftTimings: '6:00 AM - 2:00 PM',
+        day_shift: {
+          planId: 'day-shift',
+          planName: 'Day Shift Plan (7:00 AM – 8:00 PM)',
+          slotType: 'DAY',
+          shiftTimings: '7:00 AM - 8:00 PM',
         },
-        full_day: {
-          planId: 'full-day-pass',
-          planName: 'Full Day Pass (Study Freedom)',
-          slotType: 'FULL_DAY',
-          shiftTimings: '6:00 AM - 10:00 PM',
+        night_shift: {
+          planId: 'night-shift',
+          planName: 'Night Shift Plan (8:00 PM – 8:00 AM)',
+          slotType: 'NIGHT',
+          shiftTimings: '8:00 PM - 8:00 AM',
         },
-        evening: {
-          planId: 'half-day-evening',
-          planName: 'Evening Shift (Night Owl Focus)',
-          slotType: 'EVENING',
-          shiftTimings: '2:00 PM - 10:00 PM',
+        full_day_24h: {
+          planId: 'full-day-24h',
+          planName: '24 Hours Dedicated Plan',
+          slotType: 'TWENTY_FOUR_HOURS',
+          shiftTimings: '24 Hours (Round the Clock)',
         },
       }[enrollForm.planType] || {
-        planId: 'full-day-pass',
-        planName: 'Full Day Pass (Study Freedom)',
-        slotType: 'FULL_DAY',
-        shiftTimings: '6:00 AM - 10:00 PM',
+        planId: 'day-shift',
+        planName: 'Day Shift Plan (7:00 AM – 8:00 PM)',
+        slotType: 'DAY',
+        shiftTimings: '7:00 AM - 8:00 PM',
       };
 
       const res = await client.post(API_ENDPOINTS.MEMBERSHIPS.CREATE, {
@@ -672,10 +675,22 @@ export default function AdminDashboardPage() {
     window.open(`${API_ENDPOINTS.ADMIN.EXPORT_CSV}?type=${type}`, '_blank');
   };
 
+  // Helper to match shift/plan filter against planId and planName
+  const matchesPlanFilter = (planIdentifier, planName, filterVal) => {
+    if (!filterVal) return true;
+    const pId = (planIdentifier || '').toLowerCase();
+    const pName = (planName || '').toLowerCase();
+    const f = filterVal.toLowerCase();
+    if (f === 'day') return pId.includes('day') || pName.includes('day') || pId.includes('morning') || pName.includes('morning');
+    if (f === 'night') return pId.includes('night') || pName.includes('night') || pId.includes('evening') || pName.includes('evening');
+    if (f === '24') return pId.includes('24') || pName.includes('24') || pId.includes('full') || pName.includes('full');
+    return pId.includes(f) || pName.includes(f);
+  };
+
   // Filtered Memberships for Tab 2 (Students & Members)
   const filteredMemberships = memberships.filter((m) => {
     if (memberFilter && m.status !== memberFilter) return false;
-    if (memberPlanFilter && m.planId !== memberPlanFilter) return false;
+    if (memberPlanFilter && !matchesPlanFilter(m.planId, m.planName, memberPlanFilter)) return false;
     if (memberFeeStatusFilter === 'dues' && (!m.billingSummary || m.billingSummary.totalDuePaise <= 0)) return false;
     if (memberFeeStatusFilter === 'advance' && (!m.billingSummary || !m.billingSummary.isAdvancePaid)) return false;
     if (memberFeeStatusFilter === 'paid' && (!m.billingSummary || m.billingSummary.totalDuePaise > 0 || m.billingSummary.isAdvancePaid)) return false;
@@ -700,9 +715,8 @@ export default function AdminDashboardPage() {
       const studentEmail = (att.userId?.email || '').toLowerCase();
       if (!studentName.includes(q) && !studentEmail.includes(q)) return false;
     }
-    if (attendanceShiftFilter) {
-      const planName = (att.planName || '').toLowerCase();
-      if (!planName.includes(attendanceShiftFilter.toLowerCase())) return false;
+    if (attendanceShiftFilter && !matchesPlanFilter(att.planId, att.planName, attendanceShiftFilter)) {
+      return false;
     }
     return true;
   });
@@ -710,7 +724,7 @@ export default function AdminDashboardPage() {
   // Filtered Billing Lists for Tab 4 (Fees & Invoices)
   const filteredPayments = paymentsList.filter((p) => {
     if (billingMethodFilter && p.method?.toUpperCase() !== billingMethodFilter) return false;
-    if (billingPlanFilter && !(p.invoiceId?.planName || '').toLowerCase().includes(billingPlanFilter.toLowerCase())) return false;
+    if (billingPlanFilter && !matchesPlanFilter(p.invoiceId?.planId, p.invoiceId?.planName, billingPlanFilter)) return false;
     if (billingSearch.trim()) {
       const q = billingSearch.toLowerCase().trim();
       const studentName = (p.userId?.name || '').toLowerCase();
@@ -732,7 +746,7 @@ export default function AdminDashboardPage() {
   });
 
   const filteredDues = duesList.filter((due) => {
-    if (billingPlanFilter && !(due.membershipPlan || '').toLowerCase().includes(billingPlanFilter.toLowerCase())) return false;
+    if (billingPlanFilter && !matchesPlanFilter(due.membershipId, due.membershipPlan, billingPlanFilter)) return false;
     if (billingSearch.trim()) {
       const q = billingSearch.toLowerCase().trim();
       const studentName = (due.user?.name || '').toLowerCase();
@@ -754,7 +768,7 @@ export default function AdminDashboardPage() {
         return false;
       }
     }
-    if (billingPlanFilter && !(inv.planName || '').toLowerCase().includes(billingPlanFilter.toLowerCase())) return false;
+    if (billingPlanFilter && !matchesPlanFilter(inv.planId, inv.planName, billingPlanFilter)) return false;
     if (billingSearch.trim()) {
       const q = billingSearch.toLowerCase().trim();
       const studentName = (inv.userId?.name || '').toLowerCase();
@@ -1030,9 +1044,9 @@ export default function AdminDashboardPage() {
                 className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-brand-surface-border bg-white text-brand-navy-900 font-semibold focus:outline-none focus:ring-2 focus:ring-brand-gold-500"
               >
                 <option value="">All Shifts & Plans</option>
-                <option value="half-day-morning">Morning Shift (6 AM - 2 PM)</option>
-                <option value="full-day-pass">Full Day Pass (6 AM - 10 PM)</option>
-                <option value="half-day-evening">Evening Shift (2 PM - 10 PM)</option>
+                <option value="day">Day Shift (7 AM - 8 PM)</option>
+                <option value="night">Night Shift (8 PM - 8 AM)</option>
+                <option value="24">24 Hours (Round the Clock)</option>
               </select>
             </div>
 
@@ -1264,9 +1278,9 @@ export default function AdminDashboardPage() {
                 className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-brand-surface-border bg-white text-brand-navy-900 font-semibold focus:outline-none focus:ring-2 focus:ring-brand-gold-500"
               >
                 <option value="">All Shifts & Plans</option>
-                <option value="morning">Morning Shift (6 AM - 2 PM)</option>
-                <option value="full day">Full Day Pass (6 AM - 10 PM)</option>
-                <option value="evening">Evening Shift (2 PM - 10 PM)</option>
+                <option value="day">Day Shift (7 AM - 8 PM)</option>
+                <option value="night">Night Shift (8 PM - 8 AM)</option>
+                <option value="24">24 Hours (Round the Clock)</option>
               </select>
             </div>
 
@@ -1618,9 +1632,9 @@ export default function AdminDashboardPage() {
                   className="w-full py-1.5 px-2.5 text-xs rounded-lg border border-brand-surface-border bg-white text-brand-navy-950 font-medium focus:outline-none focus:ring-2 focus:ring-brand-gold-500"
                 >
                   <option value="">All Shifts & Plans</option>
-                  <option value="morning">Morning Shift (6 AM - 2 PM)</option>
-                  <option value="full day">Full Day Pass (6 AM - 10 PM)</option>
-                  <option value="evening">Evening Shift (2 PM - 10 PM)</option>
+                  <option value="day">Day Shift (7 AM - 8 PM)</option>
+                  <option value="night">Night Shift (8 PM - 8 AM)</option>
+                  <option value="24">24 Hours (Round the Clock)</option>
                 </select>
               </div>
 
@@ -2100,8 +2114,8 @@ export default function AdminDashboardPage() {
 
       {/* MODAL: ENROLL NEW MEMBER */}
       {showCreateMemberModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-brand-navy-950/60 backdrop-blur-sm overflow-y-auto">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 sm:p-7 shadow-2xl border border-brand-surface-border my-8">
+        <div className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center p-3 sm:p-4 pt-14 pb-8 sm:py-8 bg-brand-navy-950/70 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-5 sm:p-7 shadow-2xl border border-brand-surface-border my-auto relative">
             <div className="flex items-center justify-between pb-3 border-b border-brand-surface-border mb-4">
               <div>
                 <h3 className="text-base font-bold text-brand-navy-950">
@@ -2191,44 +2205,44 @@ export default function AdminDashboardPage() {
                 <div className="grid grid-cols-3 gap-2">
                   <button
                     type="button"
-                    onClick={() => handleEnrollPlanSelect('morning')}
+                    onClick={() => handleEnrollPlanSelect('day_shift')}
                     className={`p-2.5 rounded-xl border text-center transition-all ${
-                      enrollForm.planType === 'morning'
+                      enrollForm.planType === 'day_shift'
                         ? 'border-brand-gold-500 bg-brand-gold-50/60 font-bold text-brand-navy-950 shadow-soft-sm'
                         : 'border-brand-surface-border bg-white text-brand-navy-700 hover:bg-brand-surface-muted'
                     }`}
                   >
-                    <span className="block text-xs font-bold">Morning</span>
-                    <span className="block text-[10px] text-brand-navy-500">6 AM - 2 PM</span>
+                    <span className="block text-xs font-bold">Day Shift</span>
+                    <span className="block text-[10px] text-brand-navy-500">7 AM - 8 PM</span>
+                    <span className="block text-xs font-bold text-brand-gold-700 mt-0.5">₹500</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleEnrollPlanSelect('night_shift')}
+                    className={`p-2.5 rounded-xl border text-center transition-all ${
+                      enrollForm.planType === 'night_shift'
+                        ? 'border-brand-gold-500 bg-brand-gold-50/60 font-bold text-brand-navy-950 shadow-soft-sm'
+                        : 'border-brand-surface-border bg-white text-brand-navy-700 hover:bg-brand-surface-muted'
+                    }`}
+                  >
+                    <span className="block text-xs font-bold">Night Shift</span>
+                    <span className="block text-[10px] text-brand-navy-500">8 PM - 8 AM</span>
                     <span className="block text-xs font-bold text-brand-gold-700 mt-0.5">₹600</span>
                   </button>
 
                   <button
                     type="button"
-                    onClick={() => handleEnrollPlanSelect('full_day')}
+                    onClick={() => handleEnrollPlanSelect('full_day_24h')}
                     className={`p-2.5 rounded-xl border text-center transition-all ${
-                      enrollForm.planType === 'full_day'
+                      enrollForm.planType === 'full_day_24h'
                         ? 'border-brand-gold-500 bg-brand-gold-50/60 font-bold text-brand-navy-950 shadow-soft-sm'
                         : 'border-brand-surface-border bg-white text-brand-navy-700 hover:bg-brand-surface-muted'
                     }`}
                   >
-                    <span className="block text-xs font-bold">Full Day</span>
-                    <span className="block text-[10px] text-brand-navy-500">6 AM - 10 PM</span>
-                    <span className="block text-xs font-bold text-brand-gold-700 mt-0.5">₹1,000</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleEnrollPlanSelect('evening')}
-                    className={`p-2.5 rounded-xl border text-center transition-all ${
-                      enrollForm.planType === 'evening'
-                        ? 'border-brand-gold-500 bg-brand-gold-50/60 font-bold text-brand-navy-950 shadow-soft-sm'
-                        : 'border-brand-surface-border bg-white text-brand-navy-700 hover:bg-brand-surface-muted'
-                    }`}
-                  >
-                    <span className="block text-xs font-bold">Evening</span>
-                    <span className="block text-[10px] text-brand-navy-500">2 PM - 10 PM</span>
-                    <span className="block text-xs font-bold text-brand-gold-700 mt-0.5">₹600</span>
+                    <span className="block text-xs font-bold">24 Hours</span>
+                    <span className="block text-[10px] text-brand-navy-500">Round Clock</span>
+                    <span className="block text-xs font-bold text-brand-gold-700 mt-0.5">₹800</span>
                   </button>
                 </div>
               </div>
@@ -2381,8 +2395,8 @@ export default function AdminDashboardPage() {
 
       {/* MODAL: DEACTIVATE MEMBERSHIP */}
       {showDeactivateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-brand-navy-950/60 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-brand-surface-border">
+        <div className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center p-3 sm:p-4 pt-14 pb-8 sm:py-8 bg-brand-navy-950/70 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-md w-full p-5 sm:p-6 shadow-2xl border border-brand-surface-border my-auto relative">
             <h3 className="text-base font-bold text-brand-navy-950 mb-2">
               Deactivate Membership Immediately
             </h3>
@@ -2433,8 +2447,8 @@ export default function AdminDashboardPage() {
 
       {/* MODAL: RECORD PAYMENT */}
       {showPaymentModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-brand-navy-950/60 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-brand-surface-border">
+        <div className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center p-3 sm:p-4 pt-14 pb-8 sm:py-8 bg-brand-navy-950/70 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-md w-full p-5 sm:p-6 shadow-2xl border border-brand-surface-border my-auto relative">
             <h3 className="text-base font-bold text-brand-navy-950 mb-4">
               Record Student Payment
             </h3>
@@ -2609,8 +2623,8 @@ export default function AdminDashboardPage() {
 
       {/* MODAL: UPDATE / EDIT MEMBERSHIP (PLAN, SHIFT TIMINGS, MONTHLY FEE) */}
       {showEditMemberModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-brand-navy-950/60 backdrop-blur-sm overflow-y-auto">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-brand-surface-border my-8">
+        <div className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center p-3 sm:p-4 pt-14 pb-8 sm:py-8 bg-brand-navy-950/70 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-5 sm:p-6 shadow-2xl border border-brand-surface-border my-auto relative">
             <div className="flex items-center justify-between pb-3 border-b border-brand-surface-border mb-4">
               <div>
                 <h3 className="text-base font-bold text-brand-navy-950">
@@ -2648,44 +2662,44 @@ export default function AdminDashboardPage() {
                 <div className="grid grid-cols-3 gap-2">
                   <button
                     type="button"
-                    onClick={() => handleEditPlanSelect('morning')}
+                    onClick={() => handleEditPlanSelect('day_shift')}
                     className={`p-2.5 rounded-xl border text-center transition-all ${
-                      editForm.planType === 'morning'
+                      editForm.planType === 'day_shift'
                         ? 'border-brand-gold-500 bg-brand-gold-50/60 font-bold text-brand-navy-950 shadow-soft-sm'
                         : 'border-brand-surface-border bg-white text-brand-navy-700 hover:bg-brand-surface-muted'
                     }`}
                   >
-                    <span className="block text-xs font-bold">Morning</span>
-                    <span className="block text-[10px] text-brand-navy-500">6 AM - 2 PM</span>
+                    <span className="block text-xs font-bold">Day Shift</span>
+                    <span className="block text-[10px] text-brand-navy-500">7 AM - 8 PM</span>
+                    <span className="block text-xs font-bold text-brand-gold-700 mt-0.5">₹500</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleEditPlanSelect('night_shift')}
+                    className={`p-2.5 rounded-xl border text-center transition-all ${
+                      editForm.planType === 'night_shift'
+                        ? 'border-brand-gold-500 bg-brand-gold-50/60 font-bold text-brand-navy-950 shadow-soft-sm'
+                        : 'border-brand-surface-border bg-white text-brand-navy-700 hover:bg-brand-surface-muted'
+                    }`}
+                  >
+                    <span className="block text-xs font-bold">Night Shift</span>
+                    <span className="block text-[10px] text-brand-navy-500">8 PM - 8 AM</span>
                     <span className="block text-xs font-bold text-brand-gold-700 mt-0.5">₹600</span>
                   </button>
 
                   <button
                     type="button"
-                    onClick={() => handleEditPlanSelect('full_day')}
+                    onClick={() => handleEditPlanSelect('full_day_24h')}
                     className={`p-2.5 rounded-xl border text-center transition-all ${
-                      editForm.planType === 'full_day'
+                      editForm.planType === 'full_day_24h'
                         ? 'border-brand-gold-500 bg-brand-gold-50/60 font-bold text-brand-navy-950 shadow-soft-sm'
                         : 'border-brand-surface-border bg-white text-brand-navy-700 hover:bg-brand-surface-muted'
                     }`}
                   >
-                    <span className="block text-xs font-bold">Full Day</span>
-                    <span className="block text-[10px] text-brand-navy-500">6 AM - 10 PM</span>
-                    <span className="block text-xs font-bold text-brand-gold-700 mt-0.5">₹1,000</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleEditPlanSelect('evening')}
-                    className={`p-2.5 rounded-xl border text-center transition-all ${
-                      editForm.planType === 'evening'
-                        ? 'border-brand-gold-500 bg-brand-gold-50/60 font-bold text-brand-navy-950 shadow-soft-sm'
-                        : 'border-brand-surface-border bg-white text-brand-navy-700 hover:bg-brand-surface-muted'
-                    }`}
-                  >
-                    <span className="block text-xs font-bold">Evening</span>
-                    <span className="block text-[10px] text-brand-navy-500">2 PM - 10 PM</span>
-                    <span className="block text-xs font-bold text-brand-gold-700 mt-0.5">₹600</span>
+                    <span className="block text-xs font-bold">24 Hours</span>
+                    <span className="block text-[10px] text-brand-navy-500">Round Clock</span>
+                    <span className="block text-xs font-bold text-brand-gold-700 mt-0.5">₹800</span>
                   </button>
                 </div>
               </div>
@@ -2714,7 +2728,7 @@ export default function AdminDashboardPage() {
                     required
                     value={editForm.shiftTimings}
                     onChange={(e) => setEditForm({ ...editForm, shiftTimings: e.target.value })}
-                    placeholder="e.g. 6:00 AM - 2:00 PM"
+                    placeholder="e.g. 7:00 AM - 8:00 PM"
                     className="w-full px-3 py-2 rounded-xl border border-brand-surface-border text-brand-navy-950 font-medium focus:outline-none focus:ring-2 focus:ring-brand-gold-500"
                   />
                 </div>
@@ -2803,8 +2817,8 @@ export default function AdminDashboardPage() {
 
       {/* MODAL: REVERSE PAYMENT RECEIPT */}
       {showReverseModal && selectedPayment && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-brand-navy-950/60 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-brand-surface-border animate-in fade-in zoom-in duration-150">
+        <div className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center p-3 sm:p-4 pt-14 pb-8 sm:py-8 bg-brand-navy-950/70 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-md w-full p-5 sm:p-6 shadow-2xl border border-brand-surface-border my-auto relative animate-in fade-in zoom-in duration-150">
             <div className="flex items-start justify-between mb-4">
               <div>
                 <h3 className="text-base font-bold text-rose-900 flex items-center gap-2">

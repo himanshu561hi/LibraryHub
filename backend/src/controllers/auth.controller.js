@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import config from '../config/index.js';
 import { User, Admin, Membership } from '../models/index.js';
 import { verifyGoogleIdToken } from '../services/googleAuth.js';
+import { checkAndDeactivateIfAbsent } from '../jobs/attendanceJob.js';
 import { generateToken, setSessionCookie, clearSessionCookie } from '../utils/token.js';
 import { successResponse, errorResponse } from '../utils/response.js';
 import logger from '../utils/logger.js';
@@ -64,6 +65,37 @@ export const studentGoogleLogin = async (req, res, next) => {
       // Populate membership
       if (user.currentMembership) {
         membership = await Membership.findById(user.currentMembership);
+      } else {
+        membership = await Membership.findOne({ userId: user._id, status: 'active' });
+        if (!membership) {
+          membership = await Membership.findOne({ userId: user._id }).sort({ createdAt: -1 });
+        }
+      }
+
+      // 1. If membership is active, verify 2-day absence rule
+      if (membership && membership.status === 'active') {
+        const absenceCheck = await checkAndDeactivateIfAbsent(user, membership);
+        if (absenceCheck.deactivated) {
+          logger.warn(`Login rejected: ${user.email} auto-deactivated due to 2+ days missing attendance.`);
+          return errorResponse(
+            res,
+            'Access Denied: Your account has been automatically deactivated because you did not mark attendance for 2 consecutive days. Please visit the Library Hub front desk or contact the administrator to reactivate your membership.',
+            403,
+            'ACCOUNT_DEACTIVATED_ABSENCE'
+          );
+        }
+      }
+
+      // 2. Block login if student account or membership is inactive
+      if (user.isActive === false || (membership && membership.status === 'inactive')) {
+        const deactReason = membership?.deactivationReason || user.deactivationReason || 'Membership is inactive';
+        logger.warn(`Login rejected: Inactive account for ${user.email} (${deactReason})`);
+        return errorResponse(
+          res,
+          `Access Denied: Your account is currently inactive (${deactReason}). Please visit the Library Hub front desk to reactivate your membership.`,
+          403,
+          'ACCOUNT_INACTIVE'
+        );
       }
     } else if (config.env === 'development') {
       // In offline development fallback mode

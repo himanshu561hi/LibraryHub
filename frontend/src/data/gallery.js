@@ -90,9 +90,9 @@ export const galleryItems = [
   },
   {
     id: 8,
-    title: 'Evening Shift Ambience & Lighting',
+    title: 'Night Shift Ambience & Lighting',
     category: 'Study Hall',
-    description: 'Warm, eye-friendly LED illumination designed to prevent eye strain during night shifts.',
+    description: 'Warm, eye-friendly LED illumination designed to prevent eye strain during overnight study sessions.',
     aspectRatio: 'aspect-[4/3]',
     src: null,
     dimensions: '1600 × 1200 (Night Ambience)',

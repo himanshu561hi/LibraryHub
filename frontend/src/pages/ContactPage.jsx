@@ -80,7 +80,7 @@ export default function ContactPage() {
                 </div>
 
                 <p className="text-xs sm:text-sm text-brand-navy-700 leading-relaxed">
-                  Call our administrator directly for immediate guidance on seat vacancies, morning/evening shift timings, monthly fees, and same-day desk reservation.
+                  Call our administrator directly for immediate guidance on seat vacancies, day/night shift timings, monthly fees (₹500, ₹600, ₹800), and same-day desk reservation.
                 </p>
 
                 <div className="pt-2 border-t border-brand-surface-border space-y-2 text-xs text-brand-navy-600">
@@ -295,7 +295,7 @@ export default function ContactPage() {
                 <div className="pt-3 border-t border-brand-navy-800 flex items-center justify-between text-xs text-brand-navy-300 font-medium">
                   <span className="flex items-center gap-1.5">
                     <Clock className="w-3.5 h-3.5 text-brand-gold-400" />
-                    Open 6:00 AM – 10:00 PM (All 7 Days)
+                    Open 24 Hours (All 7 Days · Day & Night Shifts)
                   </span>
                   <span className="text-brand-gold-300 font-bold">Free Walk-In</span>
                 </div>

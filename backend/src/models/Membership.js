@@ -12,6 +12,10 @@ const membershipSchema = new mongoose.Schema(
       type: String,
       required: [true, 'Plan ID is required'],
       enum: [
+        'day-shift',
+        'night-shift',
+        'full-day-24h',
+        '24-hours',
         'half-day-morning',
         'morning-shift',
         'full-day-pass',
@@ -27,7 +31,7 @@ const membershipSchema = new mongoose.Schema(
     slotType: {
       type: String,
       required: [true, 'Slot type is required'],
-      enum: ['MORNING', 'FULL_DAY', 'EVENING'],
+      enum: ['DAY', 'NIGHT', 'TWENTY_FOUR_HOURS', 'MORNING', 'FULL_DAY', 'EVENING'],
     },
     shiftTimings: {
       type: String,

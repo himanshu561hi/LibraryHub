@@ -1,7 +1,11 @@
 import request from 'supertest';
 import app from '../src/app.js';
+import { connectDatabase } from '../src/config/db.js';
 
 describe('Phase 01: Backend Foundation — Health Endpoints', () => {
+  beforeAll(async () => {
+    await connectDatabase();
+  }, 25000);
   it('GET /api/v1/health returns 200 and healthy status', async () => {
     const res = await request(app).get('/api/v1/health');
 

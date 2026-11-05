@@ -203,9 +203,9 @@ export default function HomePage() {
                         Operational Hours
                       </span>
                       <span className="text-sm font-bold text-brand-navy-950 mt-0.5 block">
-                        6:00 AM – 10:00 PM
+                        24 Hours Open
                       </span>
-                      <span className="text-[11px] text-emerald-700 font-medium">All 7 Days Open</span>
+                      <span className="text-[11px] text-emerald-700 font-medium">All 7 Days · Day & Night Shifts</span>
                     </div>
 
                     <div className="p-3 rounded-lg bg-brand-surface-muted border border-brand-surface-border/80">
@@ -213,7 +213,7 @@ export default function HomePage() {
                         Monthly Access
                       </span>
                       <span className="text-sm font-bold text-brand-navy-950 mt-0.5 block">
-                        Starting at ₹600
+                        Starting at ₹500
                       </span>
                       <span className="text-[11px] text-brand-gold-700 font-medium">Affordable Plans</span>
                     </div>
@@ -327,7 +327,7 @@ export default function HomePage() {
               </p>
               <div className="mt-4 pt-3 border-t border-brand-surface-border flex items-center gap-1.5 text-xs text-brand-navy-600 font-medium">
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                <span>Morning & evening shifts built around jobs</span>
+                <span>Day & night shifts built around jobs</span>
               </div>
             </div>
 
@@ -462,7 +462,7 @@ export default function HomePage() {
           <SectionHeading
             subtitle="Study Shifts & Plans"
             title="Flexible Memberships Tailored to Your Routine"
-            description="Whether you study best early in the morning, throughout the full day, or in the evening, choose a shift that matches your preparation schedule."
+            description="Whether you study during the day (7 AM – 8 PM), through the night (8 PM – 8 AM), or need 24-hour round-the-clock access, choose a plan that matches your routine."
           />
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto items-stretch">

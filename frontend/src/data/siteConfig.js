@@ -21,6 +21,6 @@ export const siteConfig = {
   state: "Uttar Pradesh",
   pincode: "274509",
   mapUrl: "https://maps.app.goo.gl/cJcV5phrsoDBx4NR9",
-  hours: "6:00 AM – 10:00 PM (Open All 7 Days)",
+  hours: "24 Hours (Open All 7 Days · Day & Night Shifts)",
   email: null, // Will be updated once confirmed by the owner
 };

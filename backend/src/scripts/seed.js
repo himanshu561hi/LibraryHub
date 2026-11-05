@@ -29,15 +29,15 @@ export const runSeed = async () => {
       {
         key: 'pricing_plans',
         value: {
-          morningShift: { feeInPaise: 60000, name: 'Morning Shift Plan (6 AM – 2 PM)' },
-          fullDayPass: { feeInPaise: 100000, name: 'Full Day Dedicated Plan (6 AM – 10 PM)' },
-          eveningShift: { feeInPaise: 60000, name: 'Evening Shift Plan (2 PM – 10 PM)' },
+          dayShift: { feeInPaise: 50000, name: 'Day Shift Plan (7 AM – 8 PM)' },
+          nightShift: { feeInPaise: 60000, name: 'Night Shift Plan (8 PM – 8 AM)' },
+          fullDay24h: { feeInPaise: 80000, name: '24 Hours Dedicated Plan (24×7)' },
         },
         description: 'Standard monthly membership shift fees in integer paise',
       },
       {
         key: 'operating_hours',
-        value: '6:00 AM – 10:00 PM (All 7 Days Open)',
+        value: '24 Hours Open (All 7 Days Open · Day & Night Shifts)',
         description: 'Official Library Hub operational schedule',
       },
       {

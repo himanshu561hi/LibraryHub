@@ -3,8 +3,13 @@ import { jest } from '@jest/globals';
 import app from '../src/app.js';
 import { Admin, User } from '../src/models/index.js';
 import { generateToken } from '../src/utils/token.js';
+import { connectDatabase } from '../src/config/db.js';
 
 describe('Phase 03: Authentication and Access Control', () => {
+  beforeAll(async () => {
+    await connectDatabase();
+  }, 25000);
+
   beforeEach(() => {
     jest.clearAllMocks();
   });
@@ -55,6 +60,30 @@ describe('Phase 03: Authentication and Access Control', () => {
       expect(res.status).toBe(403);
       expect(res.body.success).toBe(false);
       expect(res.body.error.code).toBe('NOT_ENROLLED');
+    });
+
+    it('rejects student sign-in if student account is inactive or missing attendance for 2 consecutive days', async () => {
+      const inactiveStudent = {
+        _id: '507f1f77bcf86cd799439011',
+        googleId: 'mock-gid-12345',
+        email: 'inactive.student@example.com',
+        name: 'INACTIVE STUDENT',
+        isActive: false,
+        role: 'student',
+        isMember: false,
+        deactivationReason: 'Auto-deactivated: No attendance marked for 2 consecutive days',
+        currentMembership: null,
+        save: jest.fn().mockResolvedValue(true),
+      };
+      jest.spyOn(User, 'findOne').mockResolvedValue(inactiveStudent);
+
+      const res = await request(app)
+        .post('/api/v1/auth/google')
+        .send({ idToken: 'mock-token-inactive.student@example.com' });
+
+      expect(res.status).toBe(403);
+      expect(res.body.success).toBe(false);
+      expect(res.body.error.code).toBe('ACCOUNT_INACTIVE');
     });
 
     it('rejects student sign-in with missing idToken', async () => {

@@ -6,13 +6,13 @@ export const faqsData = [
   {
     id: 1,
     question: "What are the daily operating hours of Library Hub Nawalpur?",
-    answer: "Our standard study schedule is planned to operate from early morning (6:00 AM) to late evening (10:00 PM), 7 days a week. Final operational shift timings will be confirmed upon grand opening.",
+    answer: "Library Hub Nawalpur is open 24 hours (all 7 days a week) with 3 flexible study plans: Day Shift (7:00 AM – 8:00 PM), Night Shift (8:00 PM – 8:00 AM), and 24 Hours Dedicated Access.",
     category: "Timings & Access",
   },
   {
     id: 2,
     question: "Do I get a fixed dedicated desk or a floating seat?",
-    answer: "Full-day members receive a reserved, dedicated study desk for the entire month. For morning and evening shifts, dedicated desks are assigned for the duration of the chosen shift.",
+    answer: "24-hour members receive a permanently reserved dedicated study desk for the entire month. For Day and Night shifts, dedicated desks are assigned for the complete duration of your registered shift.",
     category: "Membership",
   },
   {

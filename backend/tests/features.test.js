@@ -5,8 +5,13 @@ import { User, Membership } from '../src/models/index.js';
 import { generateToken } from '../src/utils/token.js';
 import { calculateNextBillingDate, calculateDueDate, generateInvoiceNumber, generateReceiptNumber } from '../src/utils/billingCalculator.js';
 import { escapeCsvCell } from '../src/controllers/admin.controller.js';
+import { connectDatabase } from '../src/config/db.js';
 
 describe('Phase 05 - Phase 09 Features and Business Rules', () => {
+  beforeAll(async () => {
+    await connectDatabase();
+  }, 25000);
+
   beforeEach(() => {
     jest.clearAllMocks();
   });
