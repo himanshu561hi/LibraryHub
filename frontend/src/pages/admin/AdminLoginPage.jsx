@@ -9,8 +9,8 @@ export default function AdminLoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState('libraryhubnawalpur@gmail.com');
+  const [password, setPassword] = useState('Admin@LibraryHub8090');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -77,7 +77,7 @@ export default function AdminLoginPage() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="admin@libraryhub.in"
+                placeholder="libraryhubnawalpur@gmail.com"
                 className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-brand-surface-border text-sm text-brand-navy-950 focus:outline-none focus:ring-2 focus:ring-brand-gold-500 focus:border-transparent transition-all"
               />
             </div>
