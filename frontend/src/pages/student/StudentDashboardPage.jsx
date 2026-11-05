@@ -425,19 +425,39 @@ export default function StudentDashboardPage() {
                 Fee & Payment Status
               </h3>
               {financials?.isAdvancePaid ? (
-                <div className="p-4 rounded-xl bg-purple-50 border border-purple-200 text-center">
+                <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-purple-50 via-purple-50/70 to-purple-100/60 border border-purple-200 text-center shadow-soft-sm">
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-purple-100 text-purple-900 border border-purple-300 mb-2">
+                    <Sparkles className="w-3 h-3 text-purple-600" />
+                    <span>Advance Payment Active</span>
+                  </div>
                   <span className="text-[11px] text-purple-700 font-bold uppercase tracking-wider block">
-                    Advance Payment Active
+                    Advance Amount Paid
                   </span>
-                  <span className="text-xl font-extrabold text-purple-950 block mt-1">
-                    ✓ Paid in Advance
+                  <span className="text-2xl sm:text-3xl font-black text-purple-950 block mt-0.5 tracking-tight">
+                    ₹{((financials.advanceAmountInPaise || 0) / 100).toLocaleString('en-IN')}
                   </span>
-                  <span className="text-xs text-purple-700 font-semibold block mt-1">
-                    Fee covered up to {financials.paidUntil ? new Date(financials.paidUntil).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Next Cycle'}
-                  </span>
-                  <span className="inline-block mt-2 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-200 text-purple-900">
-                    No Dues Pending
-                  </span>
+                  <div className="mt-3 pt-3 border-t border-purple-200/80 space-y-1.5 text-xs text-left">
+                    <div className="flex items-center justify-between text-purple-900">
+                      <span className="text-purple-700">Fee Covered Up To:</span>
+                      <strong className="font-bold text-purple-950">
+                        {financials.paidUntil ? new Date(financials.paidUntil).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Next Cycle'}
+                      </strong>
+                    </div>
+                    {financials.advanceCyclesCount > 0 && (
+                      <div className="flex items-center justify-between text-purple-800 text-[11px]">
+                        <span className="text-purple-700">Advance Cycles:</span>
+                        <span className="font-bold text-purple-900 bg-purple-200/70 px-2 py-0.5 rounded">
+                          {financials.advanceCyclesCount} Month(s) Prepaid
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="mt-3">
+                    <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                      <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                      <span>Zero Dues Pending</span>
+                    </span>
+                  </div>
                 </div>
               ) : (
                 <div className="p-4 rounded-xl bg-brand-surface-muted border border-brand-surface-border text-center">
@@ -506,7 +526,49 @@ export default function StudentDashboardPage() {
 
       {/* TAB 3: FEES & RECEIPTS */}
       {activeTab === 'fees' && (
-        <div className="space-y-8">
+        <div className="space-y-6 sm:space-y-8">
+          {/* Financial Summary Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="p-4 sm:p-5 rounded-2xl bg-white border border-brand-surface-border shadow-soft">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-brand-navy-500 block">Pending Fee Balance</span>
+              <span className={`text-2xl font-black block mt-1 ${totalDuesPaise > 0 ? 'text-amber-700' : 'text-emerald-700'}`}>
+                ₹{(totalDuesPaise / 100).toLocaleString('en-IN')}
+              </span>
+              <span className="text-[11px] text-brand-navy-500 mt-1 block">
+                {totalDuesPaise === 0 ? '✓ All current dues cleared' : 'Please clear at front desk'}
+              </span>
+            </div>
+
+            <div className={`p-4 sm:p-5 rounded-2xl border shadow-soft ${financials?.isAdvancePaid ? 'bg-purple-50/70 border-purple-200' : 'bg-white border-brand-surface-border'}`}>
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-purple-700 block">Advance Payment</span>
+                {financials?.isAdvancePaid && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-900 border border-purple-200">
+                    Active
+                  </span>
+                )}
+              </div>
+              <span className="text-2xl font-black text-purple-950 block mt-1">
+                ₹{((financials?.advanceAmountInPaise || 0) / 100).toLocaleString('en-IN')}
+              </span>
+              <span className="text-[11px] text-purple-700 mt-1 block font-medium">
+                {financials?.isAdvancePaid
+                  ? `Covered up to ${financials.paidUntil ? new Date(financials.paidUntil).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Next Cycle'}`
+                  : 'No advance allocation'}
+              </span>
+            </div>
+
+            <div className="p-4 sm:p-5 rounded-2xl bg-white border border-brand-surface-border shadow-soft">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-brand-navy-500 block">Current Membership</span>
+              <span className="text-lg font-bold text-brand-navy-950 block mt-1 truncate">
+                {membership?.planName || 'Standard Plan'}
+              </span>
+              <span className="text-[11px] text-emerald-700 mt-1 block font-semibold">
+                ₹{((membership?.monthlyFeeInPaise || 0) / 100).toLocaleString('en-IN')} / month
+              </span>
+            </div>
+          </div>
+
           {/* Invoices Table */}
           <div className="bg-white rounded-2xl p-6 sm:p-8 shadow-soft border border-brand-surface-border">
             <h2 className="text-lg font-bold text-brand-navy-950 mb-4">
@@ -591,17 +653,27 @@ export default function StudentDashboardPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-brand-surface-border">
-                    {payments.map((p) => (
-                      <tr key={p._id} className="hover:bg-brand-surface-muted/50 transition-colors">
-                        <td className="py-3 px-4 font-mono font-bold text-brand-navy-950">{p.paymentNumber}</td>
-                        <td className="py-3 px-4 text-brand-navy-800">
-                          {new Date(p.paidAt).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' })}
-                        </td>
-                        <td className="py-3 px-4 font-semibold text-brand-navy-700">{p.method}</td>
-                        <td className="py-3 px-4 font-bold text-emerald-700">₹{(p.amountInPaise / 100).toLocaleString('en-IN')}</td>
-                        <td className="py-3 px-4 font-mono text-brand-navy-500">{p.referenceNumber || '—'}</td>
-                      </tr>
-                    ))}
+                    {payments.map((p) => {
+                      const isAdv = p.notes && p.notes.toLowerCase().includes('advance');
+                      return (
+                        <tr key={p._id} className="hover:bg-brand-surface-muted/50 transition-colors">
+                          <td className="py-3 px-4 font-mono font-bold text-brand-navy-950">
+                            {p.paymentNumber}
+                            {isAdv && (
+                              <span className="ml-2 inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-900 border border-purple-200">
+                                Advance
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 text-brand-navy-800">
+                            {new Date(p.paidAt).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' })}
+                          </td>
+                          <td className="py-3 px-4 font-semibold text-brand-navy-700">{p.method}</td>
+                          <td className="py-3 px-4 font-bold text-emerald-700">₹{(p.amountInPaise / 100).toLocaleString('en-IN')}</td>
+                          <td className="py-3 px-4 font-mono text-brand-navy-500">{p.referenceNumber || p.notes || '—'}</td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

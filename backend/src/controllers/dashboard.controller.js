@@ -31,6 +31,10 @@ export const getStudentDashboard = async (req, res, next) => {
           recentAttendance: [],
           financials: {
             totalDuesInPaise: 0,
+            isAdvancePaid: false,
+            advanceAmountInPaise: 0,
+            advanceCyclesCount: 0,
+            paidUntil: null,
             invoices: [],
             payments: [],
           },
@@ -67,6 +71,32 @@ export const getStudentDashboard = async (req, res, next) => {
     const latestPaidInvoice = paidInvoices[0] || null;
     let isAdvancePaid = false;
     let paidUntil = null;
+    let advanceAmountInPaise = 0;
+    let advanceCyclesCount = 0;
+
+    // Advance invoices are any invoice whose billing period starts in the future,
+    // or marked with advance notes, or extends significantly beyond current billing window
+    const advanceInvoices = invoices.filter((inv) => {
+      const periodStart = new Date(inv.billingPeriodStart);
+      const periodEnd = new Date(inv.billingPeriodEnd);
+      const isFuture = periodStart > now || periodEnd.getTime() > now.getTime() + 25 * 24 * 60 * 60 * 1000;
+      const hasAdvanceNote = inv.notes && inv.notes.toLowerCase().includes('advance');
+      return (isFuture || hasAdvanceNote) && (inv.amountPaidInPaise || 0) > 0;
+    });
+
+    if (advanceInvoices.length > 0) {
+      isAdvancePaid = true;
+      advanceAmountInPaise = advanceInvoices.reduce((sum, inv) => sum + (inv.amountPaidInPaise || 0), 0);
+      advanceCyclesCount = advanceInvoices.length;
+    }
+
+    // Also check payments explicitly allocated to Advance
+    const advancePayments = payments.filter((p) => p.notes && p.notes.toLowerCase().includes('advance'));
+    const advancePaymentSum = advancePayments.reduce((sum, p) => sum + (p.amountInPaise || 0), 0);
+    if (advancePaymentSum > advanceAmountInPaise) {
+      advanceAmountInPaise = advancePaymentSum;
+      isAdvancePaid = true;
+    }
 
     if (latestPaidInvoice) {
       paidUntil = latestPaidInvoice.billingPeriodEnd;
@@ -106,6 +136,8 @@ export const getStudentDashboard = async (req, res, next) => {
         financials: {
           totalDuesInPaise,
           isAdvancePaid,
+          advanceAmountInPaise,
+          advanceCyclesCount,
           paidUntil,
           invoices,
           payments,
