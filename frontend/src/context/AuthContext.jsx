@@ -135,7 +135,7 @@ export function AuthProvider({ children }) {
   };
 
   /**
-   * Logout and clear local/cookie credentials
+   * Logout and clear local/cookie credentials, then redirect to Home page
    */
   const logout = async () => {
     try {
@@ -145,6 +145,7 @@ export function AuthProvider({ children }) {
     } finally {
       localStorage.removeItem('lh_auth_token');
       setUser(null);
+      window.location.href = '/';
     }
   };
 
