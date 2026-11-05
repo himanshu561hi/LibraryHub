@@ -141,11 +141,62 @@ export async function sendPaymentReceiptEmail({ user, payment, invoice }) {
   return sendTransactionalEmail({ to: user.email, subject, html });
 }
 
+/**
+ * Send Fee Reminder email for pending dues
+ */
+export async function sendFeeReminderEmail({ user, amountRupees, planName, dueDateStr, invoiceNumber }) {
+  const subject = `Fee Reminder: Library Hub Nawalpur - Pending Dues ₹${amountRupees}`;
+  const html = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
+      <div style="text-align: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid #e2e8f0;">
+        <h2 style="color: #0f172a; margin: 0; font-size: 22px; font-weight: 800;">Library Hub Nawalpur</h2>
+        <p style="color: #64748b; font-size: 13px; margin: 4px 0 0 0; font-weight: 600;">Membership Fee Payment Reminder</p>
+      </div>
+
+      <p style="color: #334155; font-size: 15px;">Dear <strong>${user.name}</strong>,</p>
+
+      <p style="color: #334155; font-size: 14px; line-height: 1.6;">
+        This is a gentle reminder that your Library Hub membership fee of <strong>₹${amountRupees}</strong> is currently pending.
+      </p>
+
+      <div style="background-color: #fefce8; border: 1px solid #fef08a; border-left: 4px solid #eab308; padding: 16px; margin: 20px 0; border-radius: 8px;">
+        <table style="width: 100%; font-size: 14px; border-collapse: collapse;">
+          ${planName ? `<tr><td style="padding: 6px 0; color: #713f12;">Membership Plan:</td><td style="padding: 6px 0; text-align: right; font-weight: bold; color: #854d0e;">${planName}</td></tr>` : ''}
+          ${invoiceNumber ? `<tr><td style="padding: 6px 0; color: #713f12;">Invoice Reference:</td><td style="padding: 6px 0; text-align: right; font-family: monospace; font-weight: bold; color: #854d0e;">${invoiceNumber}</td></tr>` : ''}
+          ${dueDateStr ? `<tr><td style="padding: 6px 0; color: #713f12;">Due Date:</td><td style="padding: 6px 0; text-align: right; font-weight: bold; color: #854d0e;">${dueDateStr}</td></tr>` : ''}
+          <tr>
+            <td style="padding: 8px 0; color: #713f12; font-size: 15px; font-weight: bold;">Outstanding Balance:</td>
+            <td style="padding: 8px 0; text-align: right; font-size: 20px; font-weight: 800; color: #b45309;">₹${amountRupees}</td>
+          </tr>
+        </table>
+      </div>
+
+      <p style="color: #334155; font-size: 14px; line-height: 1.6;">
+        Please submit your pending fee at the library reception counter (Cash or UPI) or via your student portal to avoid interruption to your study seat allocation and attendance.
+      </p>
+
+      <div style="text-align: center; margin: 24px 0;">
+        <a href="http://localhost:3000/dashboard" style="display: inline-block; background-color: #0f172a; color: #ffffff; text-decoration: none; font-weight: bold; font-size: 14px; padding: 12px 28px; border-radius: 8px;">
+          Open Student Portal
+        </a>
+      </div>
+
+      <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;" />
+      <p style="color: #94a3b8; font-size: 12px; text-align: center; line-height: 1.5; margin: 0;">
+        Library Hub Nawalpur • Opp. Degree College, Salempur-Deoria Road, Nawalpur, UP<br />
+        Contact library front desk for instant receipts or payment queries.
+      </p>
+    </div>
+  `;
+  return sendTransactionalEmail({ to: user.email, subject, html });
+}
+
 export default {
   renderTemplate,
   sendTransactionalEmail,
   sendAttendanceInEmail,
   sendAttendanceOutEmail,
   sendPaymentReceiptEmail,
+  sendFeeReminderEmail,
 };
 

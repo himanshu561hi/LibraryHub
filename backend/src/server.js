@@ -2,6 +2,7 @@ import http from 'http';
 import app from './app.js';
 import config from './config/index.js';
 import { connectDatabase, closeDatabase } from './config/db.js';
+import { startCronJobs, stopCronJobs } from './jobs/cronScheduler.js';
 import logger from './utils/logger.js';
 
 const server = http.createServer(app);
@@ -20,6 +21,9 @@ const startServer = async () => {
       logger.info(`  Health check: http://localhost:${config.port}/api/v1/health`);
       logger.info(`  Timezone: ${config.timezone}`);
       logger.info(`=======================================================`);
+
+      // Start background cron jobs (e.g. 11:59 PM auto check-out)
+      startCronJobs();
     });
   } catch (error) {
     logger.error(`Failed to start server: ${error.message}`);
@@ -30,6 +34,7 @@ const startServer = async () => {
 // Graceful shutdown handling
 const gracefulShutdown = async (signal) => {
   logger.info(`Received ${signal}. Shutting down gracefully...`);
+  stopCronJobs();
   server.close(async () => {
     logger.info('HTTP server closed.');
     await closeDatabase();

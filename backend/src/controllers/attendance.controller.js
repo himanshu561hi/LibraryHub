@@ -1,7 +1,6 @@
 import mongoose from 'mongoose';
 import { Attendance, User, Membership, AuditLog, DailyAttendanceCode } from '../models/index.js';
 import { getKolkataDateKey, verifyDailyCode } from '../utils/attendanceCode.js';
-import { sendAttendanceInEmail, sendAttendanceOutEmail } from '../services/emailService.js';
 import { successResponse, errorResponse } from '../utils/response.js';
 import logger from '../utils/logger.js';
 
@@ -23,6 +22,21 @@ export async function markCheckIn(req, res, next) {
     }
 
     const dateKey = getKolkataDateKey();
+
+    // Auto-close any previous day's session if user forgot to check out
+    const pastUnclosed = await Attendance.find({
+      userId,
+      date: { $lt: dateKey },
+      status: 'IN',
+      outTime: null,
+    });
+    for (const past of pastUnclosed) {
+      const [year, month, day] = past.date.split('-').map(Number);
+      past.outTime = new Date(Date.UTC(year, month - 1, day, 18, 29, 59, 999));
+      past.status = 'COMPLETED';
+      past.autoCheckedOut = true;
+      await past.save();
+    }
 
     let attendance = await Attendance.findOne({ userId, date: dateKey });
     if (attendance && attendance.inTime) {
@@ -49,16 +63,6 @@ export async function markCheckIn(req, res, next) {
 
     const user = (await User.findById(userId)) || req.user;
     const timeStr = now.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit' });
-
-    sendAttendanceInEmail({
-      user,
-      timeStr,
-      dateStr: dateKey,
-    })
-      .then(() => {
-        Attendance.findByIdAndUpdate(attendance._id, { inConfirmedByEmail: true }).exec();
-      })
-      .catch((e) => logger.error(`Email delivery failure on check-in: ${e.message}`));
 
     logger.info(`Attendance CHECK-IN recorded for ${user?.email || 'student'} on ${dateKey} at ${timeStr}`);
 
@@ -118,17 +122,6 @@ export async function markCheckOut(req, res, next) {
 
     const user = (await User.findById(userId)) || req.user;
     const timeStr = now.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit' });
-
-    sendAttendanceOutEmail({
-      user,
-      timeStr,
-      dateStr: dateKey,
-      durationMinutes,
-    })
-      .then(() => {
-        Attendance.findByIdAndUpdate(attendance._id, { outConfirmedByEmail: true }).exec();
-      })
-      .catch((e) => logger.error(`Email delivery failure on check-out: ${e.message}`));
 
     logger.info(`Attendance CHECK-OUT recorded for ${user?.email || 'student'} on ${dateKey}. Duration: ${durationMinutes} mins`);
 
@@ -304,6 +297,7 @@ export async function getAdminLiveAttendance(req, res, next) {
           durationMinutes: att.durationMinutes,
           isPresent: true,
           status: att.status,
+          autoCheckedOut: att.autoCheckedOut || false,
           date: dateKey,
         });
       } else {

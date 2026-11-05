@@ -101,6 +101,10 @@ export default function AdminDashboardPage() {
   const [reverseReason, setReverseReason] = useState('');
   const [reversingPayment, setReversingPayment] = useState(false);
 
+  // Fee Reminder State
+  const [remindingUserId, setRemindingUserId] = useState(null);
+  const [broadcastingReminders, setBroadcastingReminders] = useState(false);
+
   // Edit / Update Membership State
   const [showEditMemberModal, setShowEditMemberModal] = useState(false);
   const [editingMembership, setEditingMembership] = useState(null);
@@ -577,6 +581,46 @@ export default function AdminDashboardPage() {
       alert(err.message || 'Error reversing payment');
     } finally {
       setReversingPayment(false);
+    }
+  };
+
+  // Handle 1-Click Fee Reminder for Single Student
+  const handleSendFeeReminder = async (studentUserId, studentName, amount) => {
+    if (!window.confirm(`Send payment reminder email to ${studentName || 'this student'} for pending dues of ₹${amount}?`)) {
+      return;
+    }
+    setRemindingUserId(studentUserId);
+    try {
+      const res = await client.post(API_ENDPOINTS.BILLING.SEND_FEE_REMINDER, { userId: studentUserId });
+      if (res && res.success) {
+        alert(`Fee reminder email sent successfully to ${studentName || 'student'}!`);
+      } else {
+        alert(res?.error?.message || 'Failed to send fee reminder');
+      }
+    } catch (err) {
+      alert(err.message || 'Error sending fee reminder');
+    } finally {
+      setRemindingUserId(null);
+    }
+  };
+
+  // Handle Broadcast Fee Reminders to All Students with Pending Dues
+  const handleBroadcastFeeReminders = async (duesCount) => {
+    if (!window.confirm(`Are you sure you want to send fee reminder emails to ALL ${duesCount} students with outstanding dues?`)) {
+      return;
+    }
+    setBroadcastingReminders(true);
+    try {
+      const res = await client.post(API_ENDPOINTS.BILLING.SEND_FEE_REMINDER, { sendToAll: true });
+      if (res && res.success) {
+        alert(`Fee reminders successfully sent to ${res.data?.sentCount || 0} students!`);
+      } else {
+        alert(res?.error?.message || 'Failed to broadcast fee reminders');
+      }
+    } catch (err) {
+      alert(err.message || 'Error broadcasting fee reminders');
+    } finally {
+      setBroadcastingReminders(false);
     }
   };
 
@@ -1388,9 +1432,18 @@ export default function AdminDashboardPage() {
                             PRESENT (Inside Now)
                           </span>
                         ) : att.outTime ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-teal-100 text-teal-800 border border-teal-300">
-                            ✓ PRESENT (Completed)
-                          </span>
+                          att.autoCheckedOut ? (
+                            <span
+                              className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-300"
+                              title="Automatically checked out at 11:59 PM IST"
+                            >
+                              ✓ AUTO CHECK-OUT (11:59 PM)
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-teal-100 text-teal-800 border border-teal-300">
+                              ✓ PRESENT (Completed)
+                            </span>
+                          )
                         ) : (
                           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
                             ✗ ABSENT / NOT MARKED
@@ -1439,40 +1492,64 @@ export default function AdminDashboardPage() {
             </div>
 
             {/* Sub-tab Navigation */}
-            <div className="flex items-center gap-2 border-b border-brand-surface-border pb-3 mb-5">
-              <button
-                type="button"
-                onClick={() => setBillingSubTab('payments')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                  billingSubTab === 'payments'
-                    ? 'bg-brand-navy-950 text-white shadow-soft-sm'
-                    : 'text-brand-navy-600 hover:bg-brand-surface-muted hover:text-brand-navy-950'
-                }`}
-              >
-                Collection Receipts ({paymentsList.length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setBillingSubTab('dues')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                  billingSubTab === 'dues'
-                    ? 'bg-brand-navy-950 text-white shadow-soft-sm'
-                    : 'text-brand-navy-600 hover:bg-brand-surface-muted hover:text-brand-navy-950'
-                }`}
-              >
-                Pending Dues ({duesList.length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setBillingSubTab('invoices')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                  billingSubTab === 'invoices'
-                    ? 'bg-brand-navy-950 text-white shadow-soft-sm'
-                    : 'text-brand-navy-600 hover:bg-brand-surface-muted hover:text-brand-navy-950'
-                }`}
-              >
-                All Monthly Invoices ({invoices.length})
-              </button>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-brand-surface-border pb-3 mb-5">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setBillingSubTab('payments')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                    billingSubTab === 'payments'
+                      ? 'bg-brand-navy-950 text-white shadow-soft-sm'
+                      : 'text-brand-navy-600 hover:bg-brand-surface-muted hover:text-brand-navy-950'
+                  }`}
+                >
+                  Collection Receipts ({paymentsList.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBillingSubTab('dues')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                    billingSubTab === 'dues'
+                      ? 'bg-brand-navy-950 text-white shadow-soft-sm'
+                      : 'text-brand-navy-600 hover:bg-brand-surface-muted hover:text-brand-navy-950'
+                  }`}
+                >
+                  Pending Dues ({duesList.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBillingSubTab('invoices')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                    billingSubTab === 'invoices'
+                      ? 'bg-brand-navy-950 text-white shadow-soft-sm'
+                      : 'text-brand-navy-600 hover:bg-brand-surface-muted hover:text-brand-navy-950'
+                  }`}
+                >
+                  All Monthly Invoices ({invoices.length})
+                </button>
+              </div>
+
+              {billingSubTab === 'dues' && duesList.length > 0 && (
+                <button
+                  type="button"
+                  disabled={broadcastingReminders}
+                  onClick={() => handleBroadcastFeeReminders(duesList.length)}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold text-white bg-brand-navy-900 hover:bg-brand-navy-800 transition-colors disabled:opacity-50 shadow-soft-sm self-start sm:self-auto"
+                  title="Send Fee Reminder Email to all active students with pending dues"
+                >
+                  {broadcastingReminders ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-brand-gold-400" />
+                      <span>Sending Broadcast Reminders...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Mail className="w-3.5 h-3.5 text-brand-gold-400" />
+                      <span>Remind All Students ({duesList.length})</span>
+                    </>
+                  )}
+                </button>
+              )}
             </div>
 
             {/* Interactive Filter & Search Bar for Fees */}
@@ -1714,26 +1791,53 @@ export default function AdminDashboardPage() {
                             ₹{(due.totalDuePaise / 100).toLocaleString('en-IN')}
                           </td>
                           <td className="py-3 px-4 text-right">
-                            <button
-                              onClick={() => {
-                                const matchingInv = invoices.find(
-                                  (inv) => String(inv.userId?._id || inv.userId) === String(due._id) && inv.balanceInPaise > 0
-                                );
-                                if (matchingInv) {
-                                  setPaymentForm({
-                                    invoiceId: matchingInv._id,
-                                    amountRupees: matchingInv.balanceInPaise / 100,
-                                    method: 'CASH',
-                                    referenceNumber: '',
-                                    notes: '',
-                                  });
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                type="button"
+                                disabled={remindingUserId === (due.user?._id || due._id)}
+                                onClick={() =>
+                                  handleSendFeeReminder(
+                                    due.user?._id || due._id,
+                                    due.user?.name,
+                                    due.totalDuePaise / 100
+                                  )
                                 }
-                                setShowPaymentModal(true);
-                              }}
-                              className="px-2.5 py-1 rounded-lg text-xs font-bold bg-brand-gold-100 text-brand-gold-900 hover:bg-brand-gold-200 transition-colors"
-                            >
-                              Collect Fee
-                            </button>
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold text-brand-navy-800 bg-brand-surface-muted hover:bg-brand-surface-border transition-colors disabled:opacity-50"
+                                title="Send 1-Click Fee Reminder Email to this student"
+                              >
+                                {remindingUserId === (due.user?._id || due._id) ? (
+                                  <>
+                                    <Loader2 className="w-3 h-3 animate-spin text-brand-navy-600" />
+                                    <span>Sending...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Mail className="w-3 h-3 text-brand-gold-600" />
+                                    <span>Remind</span>
+                                  </>
+                                )}
+                              </button>
+                              <button
+                                onClick={() => {
+                                  const matchingInv = invoices.find(
+                                    (inv) => String(inv.userId?._id || inv.userId) === String(due._id) && inv.balanceInPaise > 0
+                                  );
+                                  if (matchingInv) {
+                                    setPaymentForm({
+                                      invoiceId: matchingInv._id,
+                                      amountRupees: matchingInv.balanceInPaise / 100,
+                                      method: 'CASH',
+                                      referenceNumber: '',
+                                      notes: '',
+                                    });
+                                  }
+                                  setShowPaymentModal(true);
+                                }}
+                                className="px-2.5 py-1 rounded-lg text-xs font-bold bg-brand-gold-100 text-brand-gold-900 hover:bg-brand-gold-200 transition-colors"
+                              >
+                                Collect Fee
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}

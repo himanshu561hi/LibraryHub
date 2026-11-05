@@ -46,6 +46,10 @@ const attendanceSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    autoCheckedOut: {
+      type: Boolean,
+      default: false,
+    },
     manualCorrections: [
       {
         correctedByAdminId: {

@@ -6,6 +6,7 @@ import {
   listPayments,
   reversePayment,
   getOutstandingDues,
+  sendFeeReminder,
   runBillingCycleJob,
 } from '../controllers/billing.controller.js';
 import { authenticateToken, requireRole } from '../middlewares/auth.js';
@@ -35,8 +36,9 @@ router.get('/payments', listPayments);
 router.post('/payments/:id/reverse', requireRole('admin', 'super_admin'), reversePayment);
 router.patch('/payments/:id/reverse', requireRole('admin', 'super_admin'), reversePayment);
 
-// Dues overview (Admin only)
+// Dues overview & 1-Click Reminder (Admin only)
 router.get('/dues', requireRole('admin', 'super_admin'), getOutstandingDues);
+router.post('/dues/remind', requireRole('admin', 'super_admin'), sendFeeReminder);
 
 export default router;
 

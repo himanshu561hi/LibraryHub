@@ -8,7 +8,7 @@ import {
   formatDateKey,
 } from '../utils/billingCalculator.js';
 import { allocatePayment } from '../utils/paymentAllocation.js';
-import { sendPaymentReceiptEmail } from '../services/emailService.js';
+import { sendPaymentReceiptEmail, sendFeeReminderEmail } from '../services/emailService.js';
 import { successResponse, errorResponse } from '../utils/response.js';
 import logger from '../utils/logger.js';
 
@@ -494,6 +494,137 @@ export async function runBillingCycleJob() {
   return { generatedCount };
 }
 
+/**
+ * Admin 1-Click Fee Reminder Email
+ * Remind a specific student or broadcast to all active students with pending dues.
+ */
+export async function sendFeeReminder(req, res, next) {
+  try {
+    const { userId, sendToAll } = req.body;
+
+    if (sendToAll) {
+      const activeMemberships = await Membership.find({ status: 'active' }).select('_id userId planName').lean();
+      const activeUserIds = activeMemberships.map((m) => m.userId);
+
+      const unpaidInvoices = await FeeInvoice.find({
+        userId: { $in: activeUserIds },
+        status: { $in: ['unpaid', 'partially_paid', 'overdue'] },
+      }).populate('userId', 'name email').sort({ dueDate: 1 }).lean();
+
+      const userDuesMap = new Map();
+      unpaidInvoices.forEach((inv) => {
+        if (!inv.userId || !inv.userId.email) return;
+        const uid = String(inv.userId._id);
+        if (!userDuesMap.has(uid)) {
+          const m = activeMemberships.find((mb) => String(mb.userId) === uid);
+          userDuesMap.set(uid, {
+            user: inv.userId,
+            planName: m?.planName || 'Library Membership',
+            totalDuePaise: 0,
+            earliestDueDate: inv.dueDate,
+            latestInvoiceNum: inv.invoiceNumber,
+          });
+        }
+        const entry = userDuesMap.get(uid);
+        entry.totalDuePaise += (inv.balanceInPaise || 0);
+      });
+
+      let sentCount = 0;
+      for (const entry of userDuesMap.values()) {
+        if (entry.totalDuePaise > 0) {
+          const amountRupees = (entry.totalDuePaise / 100).toLocaleString('en-IN');
+          const dueDateStr = entry.earliestDueDate
+            ? new Date(entry.earliestDueDate).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' })
+            : undefined;
+
+          await sendFeeReminderEmail({
+            user: entry.user,
+            amountRupees,
+            planName: entry.planName,
+            dueDateStr,
+            invoiceNumber: entry.latestInvoiceNum,
+          });
+          sentCount++;
+        }
+      }
+
+      const adminId = req.user?._id || new mongoose.Types.ObjectId('507f1f77bcf86cd799439099');
+      await AuditLog.create({
+        actor: {
+          id: adminId,
+          email: req.user?.email || 'admin@libraryhub.in',
+          role: req.user?.role || 'admin',
+        },
+        action: 'FEE_REMINDER_BROADCAST',
+        targetEntity: 'FeeInvoice',
+        reason: `Fee reminder email broadcast sent to ${sentCount} active students with pending dues`,
+      });
+
+      return successResponse(
+        res,
+        { sentCount },
+        `Fee reminder email successfully sent to ${sentCount} student(s) with pending dues.`
+      );
+    }
+
+    if (!userId) {
+      return errorResponse(res, 'Student User ID is required to send fee reminder', 400);
+    }
+
+    const student = await User.findById(userId);
+    if (!student) {
+      return errorResponse(res, 'Student not found', 404);
+    }
+
+    const membership = await Membership.findOne({ userId: student._id, status: 'active' }).lean();
+    const unpaidInvoices = await FeeInvoice.find({
+      userId: student._id,
+      status: { $in: ['unpaid', 'partially_paid', 'overdue'] },
+    }).sort({ dueDate: 1 }).lean();
+
+    const totalDuePaise = unpaidInvoices.reduce((sum, inv) => sum + (inv.balanceInPaise || 0), 0);
+    if (totalDuePaise <= 0) {
+      return errorResponse(res, `Student "${student.name}" has no pending dues!`, 400);
+    }
+
+    const amountRupees = (totalDuePaise / 100).toLocaleString('en-IN');
+    const earliestDue = unpaidInvoices[0]?.dueDate;
+    const dueDateStr = earliestDue
+      ? new Date(earliestDue).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' })
+      : undefined;
+
+    const emailResult = await sendFeeReminderEmail({
+      user: student,
+      amountRupees,
+      planName: membership?.planName || 'Library Membership',
+      dueDateStr,
+      invoiceNumber: unpaidInvoices[0]?.invoiceNumber,
+    });
+
+    const adminId = req.user?._id || new mongoose.Types.ObjectId('507f1f77bcf86cd799439099');
+    await AuditLog.create({
+      actor: {
+        id: adminId,
+        email: req.user?.email || 'admin@libraryhub.in',
+        role: req.user?.role || 'admin',
+      },
+      action: 'FEE_REMINDER_SENT',
+      targetEntity: 'User',
+      targetId: student._id,
+      reason: `1-click fee reminder sent for ₹${amountRupees} pending dues`,
+    });
+
+    return successResponse(
+      res,
+      { student: { id: student._id, name: student.name, email: student.email }, totalDuePaise, emailResult },
+      `Fee reminder email sent successfully to ${student.name} (${student.email}) for ₹${amountRupees}!`
+    );
+  } catch (err) {
+    logger.error(`Error in sendFeeReminder: ${err.message}`, { error: err });
+    return next(err);
+  }
+}
+
 export default {
   listInvoices,
   getInvoiceById,
@@ -501,5 +632,6 @@ export default {
   listPayments,
   reversePayment,
   getOutstandingDues,
+  sendFeeReminder,
   runBillingCycleJob,
 };

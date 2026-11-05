@@ -47,6 +47,7 @@ export const API_ENDPOINTS = {
     PAYMENT_HISTORY: '/billing/payments',
     REVERSE_PAYMENT: (id) => `/billing/payments/${id}/reverse`,
     OUTSTANDING_DUES: '/billing/dues',
+    SEND_FEE_REMINDER: '/billing/dues/remind',
   },
 
   // Email Campaigns
