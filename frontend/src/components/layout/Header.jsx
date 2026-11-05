@@ -98,7 +98,7 @@ export default function Header() {
         aria-hidden="true"
       />
 
-      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-4 xl:px-8">
+      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 sm:h-[68px]">
           
           {/* Brand Logo */}
@@ -110,7 +110,7 @@ export default function Header() {
             <img
               src={libraryImages.logo.src}
               alt="Library Hub Nawalpur"
-              className="h-8 xs:h-9 sm:h-10 md:h-[40px] w-auto max-w-[170px] xs:max-w-[190px] sm:max-w-[220px] lg:max-w-[200px] xl:max-w-[260px] object-contain mix-blend-multiply transition-transform group-hover:scale-105"
+              className="h-8 xs:h-9 sm:h-10 md:h-[38px] w-auto max-w-[140px] xs:max-w-[160px] sm:max-w-[180px] xl:max-w-[240px] object-contain mix-blend-multiply transition-transform group-hover:scale-105"
             />
             <span className="hidden sm:inline-block text-[10px] font-bold text-brand-gold-700 bg-brand-gold-50 px-2 py-0.5 rounded border border-brand-gold-200 tracking-wider uppercase shrink-0">
               Nawalpur
@@ -252,7 +252,7 @@ export default function Header() {
               <>
                 <Link
                   to="/login"
-                  className="inline-flex items-center gap-1.5 px-2.5 xl:px-3.5 py-1.5 xl:py-2 rounded-xl text-xs font-bold text-brand-navy-800 hover:text-brand-navy-950 hover:bg-white/80 whitespace-nowrap transition-colors shrink-0"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-brand-navy-800 hover:text-brand-navy-950 hover:bg-white/80 whitespace-nowrap transition-colors shrink-0 border border-brand-surface-border/60 hover:border-brand-surface-border shadow-soft-sm"
                 >
                   <LogIn className="w-3.5 h-3.5 text-brand-gold-600 shrink-0" />
                   <span className="whitespace-nowrap">Student Login</span>
@@ -260,7 +260,7 @@ export default function Header() {
 
                 <Link
                   to="/membership"
-                  className="inline-flex items-center gap-1.5 xl:gap-2 px-3 xl:px-4 py-1.5 xl:py-2 rounded-xl text-xs font-bold bg-brand-navy-900 text-white hover:bg-brand-navy-800 active:scale-[0.98] whitespace-nowrap transition-all shadow-soft-sm hover:shadow-soft shrink-0"
+                  className="hidden xl:inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-brand-navy-900 text-white hover:bg-brand-navy-800 active:scale-[0.98] whitespace-nowrap transition-all shadow-soft-sm hover:shadow-soft shrink-0"
                 >
                   <span className="whitespace-nowrap">Explore Membership</span>
                   <ArrowRight className="w-3.5 h-3.5 text-brand-gold-400 shrink-0" />
