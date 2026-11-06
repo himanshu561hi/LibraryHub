@@ -41,8 +41,8 @@ import {
 export default function AdminDashboardPage() {
   const { user, logout } = useAuth();
 
-  const [activeTab, setActiveTab] = useState('overview');
-  // 'overview', 'memberships', 'attendance', 'fees', 'send-mail', 'email-history', 'audit-logs'
+  const [activeTab, setActiveTab] = useState('applications');
+  // 'applications', 'memberships', 'attendance', 'fees', 'promotions', 'send-mail', 'email-history', 'audit-logs', 'overview'
 
   // Summary Metrics & Today's Code
   const [summary, setSummary] = useState(null);
@@ -203,6 +203,7 @@ export default function AdminDashboardPage() {
   // Initial load
   useEffect(() => {
     fetchSummaryAndCode();
+    fetchApplications();
   }, []);
 
   const fetchSummaryAndCode = async () => {
@@ -1253,7 +1254,6 @@ export default function AdminDashboardPage() {
       {/* Admin Tab Navigation Bar */}
       <div className="flex items-center gap-1 border-b border-brand-surface-border mb-8 overflow-x-auto bg-white p-2 rounded-xl shadow-soft-sm">
         {[
-          { id: 'overview', label: 'Overview & Reports', icon: Shield },
           { id: 'applications', label: 'New Admissions', icon: UserCheck, count: pendingAppsCount },
           { id: 'memberships', label: 'Students & Members', icon: Users },
           { id: 'attendance', label: 'Live Attendance', icon: Clock },
@@ -1262,6 +1262,7 @@ export default function AdminDashboardPage() {
           { id: 'send-mail', label: 'Send Announcements', icon: Mail },
           { id: 'email-history', label: 'Campaign Logs', icon: FileText },
           { id: 'audit-logs', label: 'Audit Trail', icon: Lock },
+          { id: 'overview', label: 'Overview & Reports', icon: Shield },
         ].map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -1292,68 +1293,6 @@ export default function AdminDashboardPage() {
           );
         })}
       </div>
-
-      {/* TAB 1: OVERVIEW & EXPORTS */}
-      {activeTab === 'overview' && (
-        <div className="space-y-8">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Quick Export Cards */}
-            <div className="bg-white p-6 rounded-2xl shadow-soft border border-brand-surface-border">
-              <h3 className="text-sm font-bold text-brand-navy-950 mb-2 flex items-center gap-2">
-                <Download className="w-4 h-4 text-brand-gold-600" />
-                Export Student Directory
-              </h3>
-              <p className="text-xs text-brand-navy-500 mb-4">
-                Download verified student member roster with formula-injection protection.
-              </p>
-              <button
-                type="button"
-                onClick={() => handleExportCsv('students')}
-                className="w-full py-2 px-4 rounded-xl text-xs font-semibold bg-brand-surface-muted hover:bg-brand-surface-border text-brand-navy-900 border border-brand-surface-border transition-colors flex items-center justify-center gap-2"
-              >
-                <Download className="w-3.5 h-3.5" />
-                <span>Download Students CSV</span>
-              </button>
-            </div>
-
-            <div className="bg-white p-6 rounded-2xl shadow-soft border border-brand-surface-border">
-              <h3 className="text-sm font-bold text-brand-navy-950 mb-2 flex items-center gap-2">
-                <Download className="w-4 h-4 text-brand-gold-600" />
-                Export Attendance Log
-              </h3>
-              <p className="text-xs text-brand-navy-500 mb-4">
-                Download historical check-in and check-out logs across all students.
-              </p>
-              <button
-                type="button"
-                onClick={() => handleExportCsv('attendance')}
-                className="w-full py-2 px-4 rounded-xl text-xs font-semibold bg-brand-surface-muted hover:bg-brand-surface-border text-brand-navy-900 border border-brand-surface-border transition-colors flex items-center justify-center gap-2"
-              >
-                <Download className="w-3.5 h-3.5" />
-                <span>Download Attendance CSV</span>
-              </button>
-            </div>
-
-            <div className="bg-white p-6 rounded-2xl shadow-soft border border-brand-surface-border">
-              <h3 className="text-sm font-bold text-brand-navy-950 mb-2 flex items-center gap-2">
-                <Download className="w-4 h-4 text-brand-gold-600" />
-                Export Billing Ledger
-              </h3>
-              <p className="text-xs text-brand-navy-500 mb-4">
-                Export invoices, payments received, and pending balances by student.
-              </p>
-              <button
-                type="button"
-                onClick={() => handleExportCsv('billing')}
-                className="w-full py-2 px-4 rounded-xl text-xs font-semibold bg-brand-surface-muted hover:bg-brand-surface-border text-brand-navy-900 border border-brand-surface-border transition-colors flex items-center justify-center gap-2"
-              >
-                <Download className="w-3.5 h-3.5" />
-                <span>Download Billing CSV</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* TAB: NEW ADMISSION APPLICATIONS */}
       {activeTab === 'applications' && (
@@ -3171,6 +3110,68 @@ export default function AdminDashboardPage() {
                   {promoSettings.entry_popup.title}
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB: OVERVIEW & EXPORTS (REPORTS) */}
+      {activeTab === 'overview' && (
+        <div className="space-y-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Quick Export Cards */}
+            <div className="bg-white p-6 rounded-2xl shadow-soft border border-brand-surface-border">
+              <h3 className="text-sm font-bold text-brand-navy-950 mb-2 flex items-center gap-2">
+                <Download className="w-4 h-4 text-brand-gold-600" />
+                Export Student Directory
+              </h3>
+              <p className="text-xs text-brand-navy-500 mb-4">
+                Download verified student member roster with formula-injection protection.
+              </p>
+              <button
+                type="button"
+                onClick={() => handleExportCsv('students')}
+                className="w-full py-2 px-4 rounded-xl text-xs font-semibold bg-brand-surface-muted hover:bg-brand-surface-border text-brand-navy-900 border border-brand-surface-border transition-colors flex items-center justify-center gap-2"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Download Students CSV</span>
+              </button>
+            </div>
+
+            <div className="bg-white p-6 rounded-2xl shadow-soft border border-brand-surface-border">
+              <h3 className="text-sm font-bold text-brand-navy-950 mb-2 flex items-center gap-2">
+                <Download className="w-4 h-4 text-brand-gold-600" />
+                Export Attendance Log
+              </h3>
+              <p className="text-xs text-brand-navy-500 mb-4">
+                Download historical check-in and check-out logs across all students.
+              </p>
+              <button
+                type="button"
+                onClick={() => handleExportCsv('attendance')}
+                className="w-full py-2 px-4 rounded-xl text-xs font-semibold bg-brand-surface-muted hover:bg-brand-surface-border text-brand-navy-900 border border-brand-surface-border transition-colors flex items-center justify-center gap-2"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Download Attendance CSV</span>
+              </button>
+            </div>
+
+            <div className="bg-white p-6 rounded-2xl shadow-soft border border-brand-surface-border">
+              <h3 className="text-sm font-bold text-brand-navy-950 mb-2 flex items-center gap-2">
+                <Download className="w-4 h-4 text-brand-gold-600" />
+                Export Billing Ledger
+              </h3>
+              <p className="text-xs text-brand-navy-500 mb-4">
+                Export invoices, payments received, and pending balances by student.
+              </p>
+              <button
+                type="button"
+                onClick={() => handleExportCsv('billing')}
+                className="w-full py-2 px-4 rounded-xl text-xs font-semibold bg-brand-surface-muted hover:bg-brand-surface-border text-brand-navy-900 border border-brand-surface-border transition-colors flex items-center justify-center gap-2"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Download Billing CSV</span>
+              </button>
             </div>
           </div>
         </div>
