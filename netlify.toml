@@ -6,6 +6,13 @@
   publish = "dist"
   command = "npm run build"
 
+# Block Netlify Injected Badge / HUD Script
+[[redirects]]
+  from = "/.netlify/scripts/hud*"
+  to = "/index.html"
+  status = 404
+  force = true
+
 # SPA Routing: Redirect all routes to /index.html with status 200
 # Ensures direct visits to /about, /facilities, /membership, /gallery, etc. don't 404
 [[redirects]]

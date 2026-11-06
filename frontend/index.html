@@ -12,6 +12,81 @@
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,600;0,700;0,800;0,900;1,700&family=Outfit:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <!-- Google Identity Services (Sign in with Google) -->
     <script src="https://accounts.google.com/gsi/client" async defer></script>
+
+    <!-- Suppress Netlify Injected Floating Badge / HUD -->
+    <style>
+      #nl-badge-frame,
+      #nl-hud-frame,
+      iframe[title*="Netlify" i],
+      iframe[srcdoc*="Netlify" i],
+      iframe[id^="nl-"] {
+        display: none !important;
+        visibility: hidden !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+        width: 0 !important;
+        height: 0 !important;
+        position: fixed !important;
+        top: -9999px !important;
+        left: -9999px !important;
+        clip-path: inset(100%) !important;
+        z-index: -999999 !important;
+      }
+    </style>
+    <script>
+      (function() {
+        function neutralize(node) {
+          if (!node || node.nodeType !== 1) return;
+          if (
+            node.id === 'nl-badge-frame' ||
+            node.id === 'nl-hud-frame' ||
+            (node.tagName === 'IFRAME' && /netlify/i.test(node.title || node.id || ''))
+          ) {
+            node.remove();
+          }
+          if (
+            node.tagName === 'SCRIPT' &&
+            (node.hasAttribute('data-nf-variant') || (node.src && node.src.indexOf('/.netlify/scripts/hud') !== -1))
+          ) {
+            try {
+              delete node.dataset.nfVariant;
+              node.removeAttribute('data-nf-variant');
+            } catch (e) {}
+            node.type = 'text/plain';
+            node.remove();
+          }
+        }
+
+        var obs = new MutationObserver(function(mutations) {
+          for (var i = 0; i < mutations.length; i++) {
+            var added = mutations[i].addedNodes;
+            for (var j = 0; j < added.length; j++) {
+              neutralize(added[j]);
+            }
+          }
+        });
+        obs.observe(document.documentElement, { childList: true, subtree: true });
+
+        var timer = setInterval(function() {
+          var frames = document.querySelectorAll('#nl-badge-frame, #nl-hud-frame, iframe[title*="Netlify" i]');
+          for (var k = 0; k < frames.length; k++) {
+            frames[k].remove();
+          }
+          var scripts = document.querySelectorAll('script[data-nf-variant], script[src*="/.netlify/scripts/hud"]');
+          for (var s = 0; s < scripts.length; s++) {
+            try {
+              delete scripts[s].dataset.nfVariant;
+              scripts[s].removeAttribute('data-nf-variant');
+            } catch (e) {}
+            scripts[s].remove();
+          }
+        }, 50);
+
+        setTimeout(function() {
+          clearInterval(timer);
+        }, 12000);
+      })();
+    </script>
   </head>
   <body class="bg-brand-surface text-brand-navy-950 font-sans antialiased min-h-screen selection:bg-brand-gold-200 selection:text-brand-navy-900">
     <div id="root"></div>
