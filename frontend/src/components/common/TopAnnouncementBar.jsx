@@ -96,3 +96,4 @@ export default function TopAnnouncementBar({ banner }) {
     </AnimatePresence>
   );
 }
+
