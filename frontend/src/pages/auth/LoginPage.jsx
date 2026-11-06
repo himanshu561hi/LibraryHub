@@ -203,15 +203,6 @@ export default function LoginPage() {
 
         {/* Footer Links */}
         <div className="pt-4 border-t border-brand-surface-border text-center space-y-2">
-          <p className="text-xs text-brand-navy-600">
-            Not yet enrolled?{' '}
-            <Link
-              to="/register"
-              className="font-bold text-brand-navy-950 hover:text-brand-gold-600 underline underline-offset-2"
-            >
-              Online Admission & Registration Form →
-            </Link>
-          </p>
           <p className="text-[11px] text-brand-navy-400">
             Are you an Administrator?{' '}
             <Link
