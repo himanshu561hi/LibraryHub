@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import healthRoutes from './health.routes.js';
+import publicRoutes from './public.routes.js';
 import authRoutes from './auth.routes.js';
 import dashboardRoutes from './dashboard.routes.js';
 import membershipRoutes from './membership.routes.js';
@@ -13,6 +14,9 @@ const router = Router();
 
 // Phase 01: Health Check endpoints
 router.use('/health', healthRoutes);
+
+// Public announcements & site features (no auth needed)
+router.use('/public', publicRoutes);
 
 // Phase 03: Authentication & User endpoints
 router.use('/auth', authRoutes);

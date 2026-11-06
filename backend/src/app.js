@@ -55,8 +55,8 @@ app.use(
 );
 
 // Body Parsing & Cookies
-app.use(express.json({ limit: '2mb' }));
-app.use(express.urlencoded({ extended: true, limit: '2mb' }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
 
 // Database connection assurance for Serverless (Vercel) & traditional servers

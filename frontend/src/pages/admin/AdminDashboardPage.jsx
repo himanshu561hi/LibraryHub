@@ -26,6 +26,12 @@ import {
   Calendar,
   Lock,
   X,
+  Megaphone,
+  Image as ImageIcon,
+  UploadCloud,
+  Trash2,
+  ExternalLink,
+  Sparkles,
 } from 'lucide-react';
 
 export default function AdminDashboardPage() {
@@ -141,6 +147,26 @@ export default function AdminDashboardPage() {
   const [sendingMail, setSendingMail] = useState(false);
   const [campaignStatusMsg, setCampaignStatusMsg] = useState('');
 
+  // Banners & Popup Promotions state
+  const [promoSettings, setPromoSettings] = useState({
+    entry_popup: {
+      enabled: false,
+      imageUrl: '',
+      title: '',
+      actionUrl: '',
+    },
+    top_announcement_bar: {
+      enabled: false,
+      text: '',
+      linkText: '',
+      linkUrl: '',
+    },
+  });
+  const [loadingPromoSettings, setLoadingPromoSettings] = useState(false);
+  const [savingPromoKey, setSavingPromoKey] = useState(null);
+  const [promoToast, setPromoToast] = useState({ type: '', message: '' });
+  const [previewPopupOpen, setPreviewPopupOpen] = useState(false);
+
   // Initial load
   useEffect(() => {
     fetchSummaryAndCode();
@@ -249,12 +275,131 @@ export default function AdminDashboardPage() {
     }
   };
 
+  // Load Promotions & Site Settings
+  const fetchPromoSettings = async () => {
+    try {
+      setLoadingPromoSettings(true);
+      const res = await client.get(API_ENDPOINTS.ADMIN.SETTINGS);
+      if (res && res.success && res.data?.settings) {
+        setPromoSettings((prev) => ({
+          entry_popup: {
+            ...prev.entry_popup,
+            ...(res.data.settings.entry_popup || {}),
+          },
+          top_announcement_bar: {
+            ...prev.top_announcement_bar,
+            ...(res.data.settings.top_announcement_bar || {}),
+          },
+        }));
+      }
+    } catch (err) {
+      console.error('Error loading promo settings:', err);
+    } finally {
+      setLoadingPromoSettings(false);
+    }
+  };
+
+  // Save specific promotional setting
+  const handleSavePromoSetting = async (key) => {
+    try {
+      setSavingPromoKey(key);
+      setPromoToast({ type: '', message: '' });
+      const value = promoSettings[key];
+      const desc =
+        key === 'entry_popup'
+          ? 'Homepage entry promotional popup modal configuration'
+          : 'Top notice & alert banner across home and student dashboard';
+
+      const res = await client.put(API_ENDPOINTS.ADMIN.SETTINGS, {
+        key,
+        value,
+        description: desc,
+      });
+
+      if (res && res.success) {
+        setPromoToast({
+          type: 'success',
+          message:
+            key === 'entry_popup'
+              ? 'Entry Popup configuration saved successfully! Changes are now live on website.'
+              : 'Top Announcement Banner saved successfully! Changes are now live on Home & Student Dashboard.',
+        });
+        setTimeout(() => setPromoToast({ type: '', message: '' }), 5000);
+      }
+    } catch (err) {
+      console.error('Error saving promo setting:', err);
+      setPromoToast({
+        type: 'error',
+        message: err.response?.data?.message || err.message || 'Failed to save settings',
+      });
+    } finally {
+      setSavingPromoKey(null);
+    }
+  };
+
+  // Image File Upload and Client-side Canvas Compression
+  const handlePopupImageUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert('Please upload a valid image file (JPG, PNG, WebP).');
+      return;
+    }
+
+    try {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target.result;
+        img.onload = () => {
+          const MAX_WIDTH = 1200;
+          const MAX_HEIGHT = 1200;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height = Math.round((height * MAX_WIDTH) / width);
+              width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width = Math.round((width * MAX_HEIGHT) / height);
+              height = MAX_HEIGHT;
+            }
+          }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+
+          const compressedBase64 = canvas.toDataURL('image/jpeg', 0.82);
+          setPromoSettings((prev) => ({
+            ...prev,
+            entry_popup: {
+              ...prev.entry_popup,
+              imageUrl: compressedBase64,
+            },
+          }));
+        };
+      };
+    } catch (err) {
+      console.error('Error processing image:', err);
+      alert('Could not process selected image. Please try another file.');
+    }
+  };
+
   // Switch tabs and load relevant dataset
   const handleTabChange = (tab) => {
     setActiveTab(tab);
     if (tab === 'memberships') fetchMemberships();
     if (tab === 'attendance') fetchLiveAttendance();
     if (tab === 'fees') fetchBilling();
+    if (tab === 'promotions') fetchPromoSettings();
     if (tab === 'email-history') fetchCampaigns();
     if (tab === 'audit-logs') fetchAuditLogs();
   };
@@ -898,6 +1043,7 @@ export default function AdminDashboardPage() {
           { id: 'memberships', label: 'Students & Members', icon: Users },
           { id: 'attendance', label: 'Live Attendance', icon: Clock },
           { id: 'fees', label: 'Fees & Invoices', icon: CreditCard },
+          { id: 'promotions', label: 'Banners & Popup', icon: Megaphone },
           { id: 'send-mail', label: 'Send Announcements', icon: Mail },
           { id: 'email-history', label: 'Campaign Logs', icon: FileText },
           { id: 'audit-logs', label: 'Audit Trail', icon: Lock },
@@ -2109,6 +2255,484 @@ export default function AdminDashboardPage() {
               </table>
             </div>
           )}
+        </div>
+      )}
+
+      {/* TAB 8: PROMOTIONS, BANNERS & ENTRY POPUP */}
+      {activeTab === 'promotions' && (
+        <div className="space-y-6">
+          {/* Header & Status Alert */}
+          <div className="bg-white rounded-2xl p-6 shadow-soft border border-brand-surface-border flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 flex items-center justify-center">
+                  <Megaphone className="w-4 h-4" />
+                </div>
+                <h2 className="text-lg font-bold text-brand-navy-950">
+                  Promotional Banners & Entry Graphic Popup
+                </h2>
+              </div>
+              <p className="text-xs text-brand-navy-600 mt-1">
+                Configure the first-visit graphic popup and the top notification strip visible on the Home Page and Student Dashboard.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={fetchPromoSettings}
+              disabled={loadingPromoSettings}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-brand-surface-muted hover:bg-brand-surface-border text-brand-navy-800 transition-colors self-start md:self-auto shrink-0"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loadingPromoSettings ? 'animate-spin' : ''}`} />
+              <span>Refresh Settings</span>
+            </button>
+          </div>
+
+          {/* Toast Notification Alert */}
+          {promoToast.message && (
+            <div
+              className={`p-4 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all ${
+                promoToast.type === 'success'
+                  ? 'bg-emerald-50 border border-emerald-200 text-emerald-800'
+                  : 'bg-rose-50 border border-rose-200 text-rose-800'
+              }`}
+            >
+              {promoToast.type === 'success' ? (
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              ) : (
+                <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+              )}
+              <span>{promoToast.message}</span>
+            </div>
+          )}
+
+          {/* 2-Column Responsive Layout */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* CARD 1: ENTRY GRAPHIC POPUP */}
+            <div className="bg-white rounded-2xl p-6 shadow-soft border border-brand-surface-border flex flex-col justify-between">
+              <div>
+                <div className="flex items-start justify-between pb-4 border-b border-brand-surface-border">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-rose-50 border border-rose-200 text-rose-600 flex items-center justify-center">
+                      <ImageIcon className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-bold text-brand-navy-950">
+                        Website Entry Graphic Popup
+                      </h3>
+                      <p className="text-[11px] text-brand-navy-500">
+                        Shows promotional banner image on site visit with a close (X) button
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Toggle Switch */}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setPromoSettings((prev) => ({
+                        ...prev,
+                        entry_popup: {
+                          ...prev.entry_popup,
+                          enabled: !prev.entry_popup?.enabled,
+                        },
+                      }))
+                    }
+                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-brand-gold-500 ${
+                      promoSettings.entry_popup?.enabled ? 'bg-emerald-600' : 'bg-slate-300'
+                    }`}
+                    role="switch"
+                    aria-checked={promoSettings.entry_popup?.enabled}
+                  >
+                    <span
+                      aria-hidden="true"
+                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                        promoSettings.entry_popup?.enabled ? 'translate-x-5' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                <div className="mt-4 space-y-4">
+                  {/* Status Indicator */}
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-semibold text-brand-navy-700">Popup Display Status:</span>
+                    <span
+                      className={`font-bold px-2.5 py-0.5 rounded-full text-[11px] ${
+                        promoSettings.entry_popup?.enabled
+                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                          : 'bg-slate-100 text-slate-600 border border-slate-200'
+                      }`}
+                    >
+                      {promoSettings.entry_popup?.enabled ? 'Enabled (Active on Site)' : 'Disabled (Hidden)'}
+                    </span>
+                  </div>
+
+                  {/* Image Graphic Upload & Preview */}
+                  <div>
+                    <label className="block text-xs font-bold text-brand-navy-800 uppercase tracking-wider mb-1.5">
+                      Promotional Graphic Image *
+                    </label>
+
+                    {promoSettings.entry_popup?.imageUrl ? (
+                      <div className="relative border-2 border-dashed border-brand-surface-border rounded-xl p-3 bg-brand-surface-muted/40">
+                        <img
+                          src={promoSettings.entry_popup.imageUrl}
+                          alt="Popup Graphic Preview"
+                          className="max-h-56 w-auto mx-auto rounded-lg object-contain shadow-soft-sm"
+                        />
+                        <div className="mt-3 flex items-center justify-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setPreviewPopupOpen(true)}
+                            className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg bg-brand-navy-950 text-white hover:bg-brand-navy-900 transition-colors"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            <span>Preview Modal</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setPromoSettings((prev) => ({
+                                ...prev,
+                                entry_popup: {
+                                  ...prev.entry_popup,
+                                  imageUrl: '',
+                                },
+                              }))
+                            }
+                            className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>Remove Graphic</span>
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <label className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-brand-surface-border hover:border-brand-gold-500 rounded-xl cursor-pointer bg-brand-surface-muted/30 hover:bg-brand-gold-50/20 transition-all text-center group">
+                        <UploadCloud className="w-8 h-8 text-brand-navy-400 group-hover:text-brand-gold-600 transition-colors mb-2" />
+                        <span className="text-xs font-bold text-brand-navy-900">
+                          Upload Promotional Graphic (JPG, PNG, WebP)
+                        </span>
+                        <span className="text-[11px] text-brand-navy-500 mt-0.5">
+                          Automatically resized & optimized for high-speed delivery
+                        </span>
+                        <input
+                          type="file"
+                          accept="image/png, image/jpeg, image/jpg, image/webp"
+                          className="hidden"
+                          onChange={handlePopupImageUpload}
+                        />
+                      </label>
+                    )}
+
+                    {/* Direct Image URL input as fallback */}
+                    <div className="mt-2.5">
+                      <label className="block text-[11px] font-semibold text-brand-navy-600 mb-1">
+                        Or enter direct Image URL:
+                      </label>
+                      <input
+                        type="url"
+                        value={promoSettings.entry_popup?.imageUrl || ''}
+                        onChange={(e) =>
+                          setPromoSettings((prev) => ({
+                            ...prev,
+                            entry_popup: {
+                              ...prev.entry_popup,
+                              imageUrl: e.target.value,
+                            },
+                          }))
+                        }
+                        placeholder="https://example.com/festive-banner.jpg"
+                        className="w-full px-3 py-2 text-xs rounded-xl border border-brand-surface-border text-brand-navy-950 font-medium focus:outline-none focus:ring-2 focus:ring-brand-gold-500"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Title & Action URL Inputs */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    <div>
+                      <label className="block font-bold text-brand-navy-800 uppercase tracking-wider mb-1">
+                        Modal Title (Optional)
+                      </label>
+                      <input
+                        type="text"
+                        value={promoSettings.entry_popup?.title || ''}
+                        onChange={(e) =>
+                          setPromoSettings((prev) => ({
+                            ...prev,
+                            entry_popup: {
+                              ...prev.entry_popup,
+                              title: e.target.value,
+                            },
+                          }))
+                        }
+                        placeholder="e.g. Diwali Special Offer 2026"
+                        className="w-full px-3 py-2 rounded-xl border border-brand-surface-border text-brand-navy-950 font-medium focus:outline-none focus:ring-2 focus:ring-brand-gold-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-bold text-brand-navy-800 uppercase tracking-wider mb-1">
+                        Click Action Link (Optional)
+                      </label>
+                      <input
+                        type="text"
+                        value={promoSettings.entry_popup?.actionUrl || ''}
+                        onChange={(e) =>
+                          setPromoSettings((prev) => ({
+                            ...prev,
+                            entry_popup: {
+                              ...prev.entry_popup,
+                              actionUrl: e.target.value,
+                            },
+                          }))
+                        }
+                        placeholder="e.g. /membership or https://wa.me/..."
+                        className="w-full px-3 py-2 rounded-xl border border-brand-surface-border text-brand-navy-950 font-medium focus:outline-none focus:ring-2 focus:ring-brand-gold-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Save Button */}
+              <div className="pt-5 mt-4 border-t border-brand-surface-border flex justify-end">
+                <button
+                  type="button"
+                  disabled={savingPromoKey === 'entry_popup'}
+                  onClick={() => handleSavePromoSetting('entry_popup')}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-navy-950 hover:bg-brand-navy-900 text-white text-xs font-bold transition-all shadow-soft-sm disabled:opacity-50"
+                >
+                  {savingPromoKey === 'entry_popup' ? (
+                    <Loader2 className="w-4 h-4 animate-spin text-brand-gold-400" />
+                  ) : (
+                    <Check className="w-4 h-4 text-brand-gold-400" />
+                  )}
+                  <span>Save Entry Popup Settings</span>
+                </button>
+              </div>
+            </div>
+
+            {/* CARD 2: TOP NOTIFICATION BANNER */}
+            <div className="bg-white rounded-2xl p-6 shadow-soft border border-brand-surface-border flex flex-col justify-between">
+              <div>
+                <div className="flex items-start justify-between pb-4 border-b border-brand-surface-border">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 flex items-center justify-center">
+                      <Sparkles className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-bold text-brand-navy-950">
+                        Top Thin Notification Banner
+                      </h3>
+                      <p className="text-[11px] text-brand-navy-500">
+                        Displayed at the top of Home Page (/) and Student Dashboard (/dashboard) with close button
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Toggle Switch */}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setPromoSettings((prev) => ({
+                        ...prev,
+                        top_announcement_bar: {
+                          ...prev.top_announcement_bar,
+                          enabled: !prev.top_announcement_bar?.enabled,
+                        },
+                      }))
+                    }
+                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-brand-gold-500 ${
+                      promoSettings.top_announcement_bar?.enabled ? 'bg-emerald-600' : 'bg-slate-300'
+                    }`}
+                    role="switch"
+                    aria-checked={promoSettings.top_announcement_bar?.enabled}
+                  >
+                    <span
+                      aria-hidden="true"
+                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                        promoSettings.top_announcement_bar?.enabled ? 'translate-x-5' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                <div className="mt-4 space-y-4">
+                  {/* Status Indicator */}
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-semibold text-brand-navy-700">Banner Display Status:</span>
+                    <span
+                      className={`font-bold px-2.5 py-0.5 rounded-full text-[11px] ${
+                        promoSettings.top_announcement_bar?.enabled
+                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                          : 'bg-slate-100 text-slate-600 border border-slate-200'
+                      }`}
+                    >
+                      {promoSettings.top_announcement_bar?.enabled
+                        ? 'Enabled (Shown on Home & Dashboard)'
+                        : 'Disabled (Hidden)'}
+                    </span>
+                  </div>
+
+                  {/* Banner Notice Text */}
+                  <div>
+                    <label className="block text-xs font-bold text-brand-navy-800 uppercase tracking-wider mb-1.5">
+                      Announcement / Offer Text *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={promoSettings.top_announcement_bar?.text || ''}
+                      onChange={(e) =>
+                        setPromoSettings((prev) => ({
+                          ...prev,
+                          top_announcement_bar: {
+                            ...prev.top_announcement_bar,
+                            text: e.target.value,
+                          },
+                        }))
+                      }
+                      placeholder="e.g. DIWALI OFFER 20% OFF — Limited Seats Available in Day & Night Shifts!"
+                      className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-brand-surface-border text-brand-navy-950 font-medium focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    />
+                    <p className="text-[11px] text-brand-navy-500 mt-1">
+                      Keep text concise and eye-catching. A dismiss cross (X) is automatically attached.
+                    </p>
+                  </div>
+
+                  {/* Optional Action Link */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    <div>
+                      <label className="block font-bold text-brand-navy-800 uppercase tracking-wider mb-1">
+                        Link Text (Optional)
+                      </label>
+                      <input
+                        type="text"
+                        value={promoSettings.top_announcement_bar?.linkText || ''}
+                        onChange={(e) =>
+                          setPromoSettings((prev) => ({
+                            ...prev,
+                            top_announcement_bar: {
+                              ...prev.top_announcement_bar,
+                              linkText: e.target.value,
+                            },
+                          }))
+                        }
+                        placeholder="e.g. Explore Memberships"
+                        className="w-full px-3 py-2 rounded-xl border border-brand-surface-border text-brand-navy-950 font-medium focus:outline-none focus:ring-2 focus:ring-amber-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-bold text-brand-navy-800 uppercase tracking-wider mb-1">
+                        Target URL / Path (Optional)
+                      </label>
+                      <input
+                        type="text"
+                        value={promoSettings.top_announcement_bar?.linkUrl || ''}
+                        onChange={(e) =>
+                          setPromoSettings((prev) => ({
+                            ...prev,
+                            top_announcement_bar: {
+                              ...prev.top_announcement_bar,
+                              linkUrl: e.target.value,
+                            },
+                          }))
+                        }
+                        placeholder="e.g. /membership"
+                        className="w-full px-3 py-2 rounded-xl border border-brand-surface-border text-brand-navy-950 font-medium focus:outline-none focus:ring-2 focus:ring-amber-500"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Real-time Visual Preview Strip */}
+                  <div className="pt-2">
+                    <span className="block text-[11px] font-bold text-brand-navy-700 uppercase tracking-wider mb-1.5">
+                      Live Strip Preview (How visitors see it):
+                    </span>
+                    <div className="bg-gradient-to-r from-amber-700 via-amber-600 to-yellow-600 text-white rounded-xl py-2 px-3 flex items-center justify-between gap-2 shadow-sm text-xs">
+                      <div className="flex-1 flex items-center justify-center gap-1.5 text-center flex-wrap">
+                        <span className="inline-flex items-center gap-1 bg-white/20 px-1.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider">
+                          <Sparkles className="w-2.5 h-2.5 text-amber-200" />
+                          Notice
+                        </span>
+                        <span className="font-semibold text-xs truncate max-w-[280px]">
+                          {promoSettings.top_announcement_bar?.text || 'DIWALI OFFER 20% OFF — Limited Seats Available!'}
+                        </span>
+                        {promoSettings.top_announcement_bar?.linkText && (
+                          <span className="underline font-bold text-amber-100 text-[11px] ml-1">
+                            {promoSettings.top_announcement_bar.linkText} →
+                          </span>
+                        )}
+                      </div>
+                      <div className="p-0.5 rounded bg-white/20 text-white/90 shrink-0">
+                        <X className="w-3.5 h-3.5" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Save Button */}
+              <div className="pt-5 mt-4 border-t border-brand-surface-border flex justify-end">
+                <button
+                  type="button"
+                  disabled={savingPromoKey === 'top_announcement_bar'}
+                  onClick={() => handleSavePromoSetting('top_announcement_bar')}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition-all shadow-soft-sm disabled:opacity-50"
+                >
+                  {savingPromoKey === 'top_announcement_bar' ? (
+                    <Loader2 className="w-4 h-4 animate-spin text-white" />
+                  ) : (
+                    <Check className="w-4 h-4 text-white" />
+                  )}
+                  <span>Save Top Banner Settings</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Quick Guidance Info Card */}
+          <div className="bg-brand-surface-muted/60 rounded-xl p-4 border border-brand-surface-border text-xs text-brand-navy-600 flex items-start gap-2.5">
+            <Shield className="w-4 h-4 text-brand-gold-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-bold text-brand-navy-900">User Experience Note:</p>
+              <p className="mt-0.5">
+                Dismissing either the Top Banner or Entry Popup on the site records a single-session dismissal in the visitor's browser. This guarantees your visitors will not be repeatedly interrupted while clicking through library tabs and pages during the same visit.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* POPUP PREVIEW MODAL FOR ADMIN */}
+      {previewPopupOpen && promoSettings.entry_popup?.imageUrl && (
+        <div
+          className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-brand-navy-950/75 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="relative z-10 w-full max-w-lg mx-auto bg-white rounded-2xl p-2 shadow-2xl border border-white/20">
+            <button
+              type="button"
+              onClick={() => setPreviewPopupOpen(false)}
+              className="absolute -top-3.5 -right-3.5 z-20 w-9 h-9 rounded-full bg-white text-brand-navy-900 hover:bg-brand-gold-500 hover:text-white transition-all shadow-xl flex items-center justify-center border-2 border-brand-navy-950"
+              aria-label="Close Preview"
+            >
+              <X className="w-5 h-5 stroke-[2.5]" />
+            </button>
+            <div className="relative overflow-hidden rounded-xl bg-black max-h-[75vh] flex flex-col items-center justify-center">
+              <img
+                src={promoSettings.entry_popup.imageUrl}
+                alt={promoSettings.entry_popup.title || 'Preview'}
+                className="w-full h-auto max-h-[70vh] object-contain rounded-xl"
+              />
+              {promoSettings.entry_popup.title && (
+                <div className="w-full bg-gradient-to-t from-black/80 via-black/40 to-transparent p-3 absolute bottom-0 inset-x-0 text-white text-center font-bold text-sm">
+                  {promoSettings.entry_popup.title}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
 

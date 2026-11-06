@@ -11,6 +11,11 @@ export const API_ENDPOINTS = {
     LOGOUT: '/auth/logout',
   },
 
+  // Public
+  PUBLIC: {
+    ANNOUNCEMENTS: '/public/announcements',
+  },
+
   // Dashboards
   DASHBOARD: {
     STUDENT: '/dashboard/student',

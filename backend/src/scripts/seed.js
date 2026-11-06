@@ -48,6 +48,26 @@ export const runSeed = async () => {
         },
         description: 'Daily code attendance verification parameters',
       },
+      {
+        key: 'entry_popup',
+        value: {
+          enabled: false,
+          imageUrl: '',
+          title: '',
+          actionUrl: '',
+        },
+        description: 'Homepage entry promotional popup modal configuration',
+      },
+      {
+        key: 'top_announcement_bar',
+        value: {
+          enabled: false,
+          text: '',
+          linkText: '',
+          linkUrl: '',
+        },
+        description: 'Top notice & alert banner across home and student dashboard',
+      },
     ];
 
     for (const setting of defaultSettings) {
