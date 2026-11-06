@@ -32,6 +32,10 @@ import {
   Trash2,
   ExternalLink,
   Sparkles,
+  UserCheck,
+  Camera,
+  ArrowRight,
+  Upload,
 } from 'lucide-react';
 
 export default function AdminDashboardPage() {
@@ -84,6 +88,11 @@ export default function AdminDashboardPage() {
     name: '',
     email: '',
     phone: '',
+    fatherName: '',
+    emergencyContact: '',
+    address: '',
+    aadharFront: null,
+    aadharBack: null,
     planType: 'day_shift',
     monthlyFee: 500,
     initialPayment: 0,
@@ -167,6 +176,30 @@ export default function AdminDashboardPage() {
   const [promoToast, setPromoToast] = useState({ type: '', message: '' });
   const [previewPopupOpen, setPreviewPopupOpen] = useState(false);
 
+  // Member Registration Applications
+  const [applications, setApplications] = useState([]);
+  const [loadingApps, setLoadingApps] = useState(false);
+  const [pendingAppsCount, setPendingAppsCount] = useState(0);
+  const [selectedApp, setSelectedApp] = useState(null);
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
+  const [approvingApp, setApprovingApp] = useState(false);
+  const [rejectingApp, setRejectingApp] = useState(false);
+  const [lightboxImage, setLightboxImage] = useState(null);
+  const [appFilterStatus, setAppFilterStatus] = useState('ALL');
+  const [appSearch, setAppSearch] = useState('');
+  const [approveForm, setApproveForm] = useState({
+    slotType: 'day_shift',
+    planName: 'Day Shift Plan (7 AM – 8 PM)',
+    shiftTimings: '7:00 AM – 8:00 PM',
+    monthlyFee: 500,
+    initialPayment: 500,
+    paymentMethod: 'CASH',
+    referenceNumber: '',
+    notes: '',
+  });
+
   // Initial load
   useEffect(() => {
     fetchSummaryAndCode();
@@ -175,12 +208,16 @@ export default function AdminDashboardPage() {
   const fetchSummaryAndCode = async () => {
     try {
       setLoadingMetrics(true);
-      const [sumRes, codeRes] = await Promise.all([
+      const [sumRes, codeRes, appsRes] = await Promise.all([
         client.get(API_ENDPOINTS.DASHBOARD.ADMIN_SUMMARY),
         client.get(API_ENDPOINTS.DASHBOARD.ADMIN_DAILY_CODE),
+        client.get(API_ENDPOINTS.ADMIN.APPLICATIONS, { params: { status: 'PENDING' } }).catch(() => null),
       ]);
       if (sumRes && sumRes.success) setSummary(sumRes.data);
       if (codeRes && codeRes.success) setDailyCodeData(codeRes.data);
+      if (appsRes && appsRes.success) {
+        setPendingAppsCount(appsRes.data.pendingCount || 0);
+      }
     } catch (err) {
       console.error('Error fetching admin summary:', err);
     } finally {
@@ -393,9 +430,175 @@ export default function AdminDashboardPage() {
     }
   };
 
+  // Compress & set Aadhar card photo for desk enrollment
+  const handleDeskAadharUpload = (e, side) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target.result;
+      img.onload = () => {
+        const MAX_WIDTH = 1200;
+        const MAX_HEIGHT = 1200;
+        let width = img.width;
+        let height = img.height;
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height = Math.round((height * MAX_WIDTH) / width);
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width = Math.round((width * MAX_HEIGHT) / height);
+            height = MAX_HEIGHT;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+        if (side === 'front') {
+          setEnrollForm((prev) => ({ ...prev, aadharFront: dataUrl }));
+        } else {
+          setEnrollForm((prev) => ({ ...prev, aadharBack: dataUrl }));
+        }
+      };
+    };
+  };
+
+  // Fetch Member Registration Applications
+  const fetchApplications = async (statusOverride, searchOverride) => {
+    try {
+      setLoadingApps(true);
+      const statusToUse = statusOverride !== undefined ? statusOverride : appFilterStatus;
+      const searchToUse = searchOverride !== undefined ? searchOverride : appSearch;
+
+      const params = {};
+      if (statusToUse && statusToUse !== 'ALL') params.status = statusToUse;
+      if (searchToUse.trim()) params.search = searchToUse.trim();
+
+      const res = await client.get(API_ENDPOINTS.ADMIN.APPLICATIONS, { params });
+      if (res && res.success) {
+        setApplications(res.data.applications || []);
+        setPendingAppsCount(res.data.pendingCount || 0);
+      }
+    } catch (err) {
+      console.error('Error loading applications:', err);
+    } finally {
+      setLoadingApps(false);
+    }
+  };
+
+  // Open Application Review Modal
+  const handleOpenReview = (app) => {
+    setSelectedApp(app);
+    setApproveForm({
+      slotType: 'day_shift',
+      planName: 'Day Shift Plan (7 AM – 8 PM)',
+      shiftTimings: '7:00 AM – 8:00 PM',
+      monthlyFee: 500,
+      initialPayment: 500,
+      paymentMethod: 'CASH',
+      referenceNumber: '',
+      notes: '',
+    });
+    setShowReviewModal(true);
+  };
+
+  // Select Plan for Approval
+  const handleApprovePlanSelect = (planKey) => {
+    if (planKey === 'day_shift') {
+      setApproveForm((prev) => ({
+        ...prev,
+        slotType: 'day_shift',
+        planName: 'Day Shift Plan (7 AM – 8 PM)',
+        shiftTimings: '7:00 AM – 8:00 PM',
+        monthlyFee: 500,
+        initialPayment: 500,
+      }));
+    } else if (planKey === 'night_shift') {
+      setApproveForm((prev) => ({
+        ...prev,
+        slotType: 'night_shift',
+        planName: 'Night Shift Plan (8 PM – 8 AM)',
+        shiftTimings: '8:00 PM – 8:00 AM',
+        monthlyFee: 600,
+        initialPayment: 600,
+      }));
+    } else if (planKey === 'full_day_24h') {
+      setApproveForm((prev) => ({
+        ...prev,
+        slotType: 'full_day_24h',
+        planName: '24 Hours Dedicated Plan (24×7)',
+        shiftTimings: 'Round the Clock (24×7)',
+        monthlyFee: 800,
+        initialPayment: 800,
+      }));
+    }
+  };
+
+  // Confirm Approval & Student Enrollment
+  const handleConfirmApproveApplication = async (e) => {
+    e.preventDefault();
+    if (!selectedApp) return;
+
+    try {
+      setApprovingApp(true);
+      const res = await client.post(
+        API_ENDPOINTS.ADMIN.APPROVE_APPLICATION(selectedApp._id),
+        approveForm
+      );
+      if (res && res.success) {
+        setShowReviewModal(false);
+        setSelectedApp(null);
+        fetchApplications();
+        fetchMemberships();
+        fetchSummaryAndCode();
+        alert('Application approved! Student enrolled and confirmation email sent.');
+      }
+    } catch (err) {
+      console.error('Approval failed:', err);
+      alert(err.response?.data?.message || err.message || 'Failed to approve application');
+    } finally {
+      setApprovingApp(false);
+    }
+  };
+
+  // Confirm Rejection
+  const handleConfirmRejectApplication = async (e) => {
+    e.preventDefault();
+    if (!selectedApp || !rejectReason.trim()) return;
+
+    try {
+      setRejectingApp(true);
+      const res = await client.post(
+        API_ENDPOINTS.ADMIN.REJECT_APPLICATION(selectedApp._id),
+        { reason: rejectReason.trim() }
+      );
+      if (res && res.success) {
+        setShowRejectModal(false);
+        setShowReviewModal(false);
+        setSelectedApp(null);
+        setRejectReason('');
+        fetchApplications();
+        alert('Application rejected and notice email sent to applicant.');
+      }
+    } catch (err) {
+      console.error('Rejection failed:', err);
+      alert(err.response?.data?.message || err.message || 'Failed to reject application');
+    } finally {
+      setRejectingApp(false);
+    }
+  };
+
   // Switch tabs and load relevant dataset
   const handleTabChange = (tab) => {
     setActiveTab(tab);
+    if (tab === 'applications') fetchApplications();
     if (tab === 'memberships') fetchMemberships();
     if (tab === 'attendance') fetchLiveAttendance();
     if (tab === 'fees') fetchBilling();
@@ -613,6 +816,12 @@ export default function AdminDashboardPage() {
         name: enrollForm.name.trim(),
         email: enrollForm.email.toLowerCase().trim(),
         phone: enrollForm.phone.trim(),
+        fatherName: enrollForm.fatherName?.trim() || '',
+        emergencyContact: enrollForm.emergencyContact?.trim() || '',
+        address: enrollForm.address?.trim() || '',
+        targetExam: enrollForm.targetExam?.trim() || '',
+        aadharFront: enrollForm.aadharFront || '',
+        aadharBack: enrollForm.aadharBack || '',
         joiningDate: enrollForm.joiningDate,
         monthlyFeeInPaise: Math.round(Number(enrollForm.monthlyFee) * 100),
         initialPaymentInPaise: Math.round(Number(enrollForm.initialPayment || 0) * 100),
@@ -635,8 +844,13 @@ export default function AdminDashboardPage() {
           name: '',
           email: '',
           phone: '',
-          planType: 'full_day',
-          monthlyFee: 1000,
+          fatherName: '',
+          emergencyContact: '',
+          address: '',
+          aadharFront: null,
+          aadharBack: null,
+          planType: 'day_shift',
+          monthlyFee: 500,
           initialPayment: 0,
           paymentMethod: 'CASH',
           referenceNumber: '',
@@ -1040,6 +1254,7 @@ export default function AdminDashboardPage() {
       <div className="flex items-center gap-1 border-b border-brand-surface-border mb-8 overflow-x-auto bg-white p-2 rounded-xl shadow-soft-sm">
         {[
           { id: 'overview', label: 'Overview & Reports', icon: Shield },
+          { id: 'applications', label: 'New Admissions', icon: UserCheck, count: pendingAppsCount },
           { id: 'memberships', label: 'Students & Members', icon: Users },
           { id: 'attendance', label: 'Live Attendance', icon: Clock },
           { id: 'fees', label: 'Fees & Invoices', icon: CreditCard },
@@ -1062,6 +1277,17 @@ export default function AdminDashboardPage() {
             >
               <Icon className="w-3.5 h-3.5" />
               <span>{tab.label}</span>
+              {typeof tab.count === 'number' && tab.count > 0 && (
+                <span
+                  className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                    isActive
+                      ? 'bg-brand-gold-400 text-brand-navy-950'
+                      : 'bg-rose-500 text-white animate-pulse'
+                  }`}
+                >
+                  {tab.count}
+                </span>
+              )}
             </button>
           );
         })}
@@ -1126,6 +1352,216 @@ export default function AdminDashboardPage() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* TAB: NEW ADMISSION APPLICATIONS */}
+      {activeTab === 'applications' && (
+        <div className="bg-white rounded-2xl p-6 shadow-soft border border-brand-surface-border">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-5">
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-bold text-brand-navy-950">New Admission Applications</h2>
+                {pendingAppsCount > 0 && (
+                  <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-200">
+                    {pendingAppsCount} Pending Review
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-brand-navy-500">
+                Review online self-registered students, inspect Aadhar card documents, assign shifts/plans, and activate dashboard access.
+              </p>
+            </div>
+
+            <button
+              onClick={() => fetchApplications()}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-brand-surface-muted hover:bg-brand-surface-border text-brand-navy-800 transition-colors shrink-0"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loadingApps ? 'animate-spin' : ''}`} />
+              <span>Refresh</span>
+            </button>
+          </div>
+
+          {/* Search & Status Filters */}
+          <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 p-3 rounded-xl bg-brand-surface-muted/60 border border-brand-surface-border mb-6">
+            <div className="sm:col-span-8 relative">
+              <Search className="w-4 h-4 text-brand-navy-400 absolute left-3 top-2.5" />
+              <input
+                type="text"
+                value={appSearch}
+                onChange={(e) => {
+                  setAppSearch(e.target.value);
+                  fetchApplications(appFilterStatus, e.target.value);
+                }}
+                placeholder="Search by student name, email, phone, or target exam..."
+                className="w-full pl-9 pr-8 py-1.5 text-xs rounded-lg border border-brand-surface-border bg-white text-brand-navy-950 focus:outline-none focus:ring-2 focus:ring-brand-gold-500 font-medium"
+              />
+              {appSearch && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAppSearch('');
+                    fetchApplications(appFilterStatus, '');
+                  }}
+                  className="absolute right-2.5 top-2 text-brand-navy-400 hover:text-brand-navy-700"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            <div className="sm:col-span-4">
+              <select
+                value={appFilterStatus}
+                onChange={(e) => {
+                  setAppFilterStatus(e.target.value);
+                  fetchApplications(e.target.value, appSearch);
+                }}
+                className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-brand-surface-border bg-white text-brand-navy-900 font-semibold focus:outline-none focus:ring-2 focus:ring-brand-gold-500"
+              >
+                <option value="ALL">All Applications</option>
+                <option value="PENDING">Pending Review Only</option>
+                <option value="APPROVED">Approved Admissions</option>
+                <option value="REJECTED">Rejected Applications</option>
+              </select>
+            </div>
+          </div>
+
+          {loadingApps ? (
+            <div className="py-12 text-center text-xs font-semibold text-brand-navy-500">
+              <Loader2 className="w-6 h-6 animate-spin mx-auto text-brand-gold-600 mb-2" />
+              Loading admission applications...
+            </div>
+          ) : applications.length === 0 ? (
+            <div className="py-12 text-center text-xs text-brand-navy-500">
+              No registration applications found.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-brand-surface-border text-brand-navy-500 uppercase font-bold tracking-wider">
+                    <th className="py-3 px-4">Applicant</th>
+                    <th className="py-3 px-4">Contact</th>
+                    <th className="py-3 px-4">Father & Emergency</th>
+                    <th className="py-3 px-4">Exam & Address</th>
+                    <th className="py-3 px-4">Aadhar Proof</th>
+                    <th className="py-3 px-4">Status</th>
+                    <th className="py-3 px-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-brand-surface-border">
+                  {applications.map((app) => (
+                    <tr key={app._id} className="hover:bg-brand-surface-muted/50 transition-colors">
+                      <td className="py-3 px-4">
+                        <span className="font-bold text-brand-navy-950 block">{app.name || app.fullName}</span>
+                        <span className="font-mono text-[10px] text-brand-navy-400 block">{app.applicationNumber}</span>
+                        <span className="text-[10px] text-brand-navy-400 block">
+                          {new Date(app.createdAt).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </span>
+                      </td>
+
+                      <td className="py-3 px-4">
+                        <span className="text-[11px] text-brand-navy-700 block font-medium">{app.email}</span>
+                        <span className="text-[11px] text-brand-navy-900 font-mono font-semibold block">{app.phone}</span>
+                      </td>
+
+                      <td className="py-3 px-4">
+                        <span className="text-brand-navy-900 block font-medium">S/O: {app.fatherName || '—'}</span>
+                        <span className="text-[10px] text-brand-navy-500 font-mono block">Emg: {app.emergencyContact || '—'}</span>
+                      </td>
+
+                      <td className="py-3 px-4">
+                        <span className="font-semibold text-brand-gold-800 block">{app.targetExam || 'General'}</span>
+                        <span className="text-[10px] text-brand-navy-500 block max-w-xs truncate" title={app.address}>
+                          {app.address || '—'}
+                        </span>
+                      </td>
+
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-1.5">
+                          {app.aadharFrontUrl ? (
+                            <button
+                              type="button"
+                              onClick={() => setLightboxImage({ url: app.aadharFrontUrl, title: `${app.name || app.fullName} - Aadhar Front` })}
+                              className="w-10 h-7 rounded border border-brand-surface-border overflow-hidden bg-brand-surface-muted hover:border-brand-gold-500 transition-colors shrink-0"
+                              title="View Aadhar Front"
+                            >
+                              <img src={app.aadharFrontUrl} alt="Front" className="w-full h-full object-cover" />
+                            </button>
+                          ) : (
+                            <span className="text-[10px] text-brand-navy-400">No front</span>
+                          )}
+
+                          {app.aadharBackUrl ? (
+                            <button
+                              type="button"
+                              onClick={() => setLightboxImage({ url: app.aadharBackUrl, title: `${app.name || app.fullName} - Aadhar Back` })}
+                              className="w-10 h-7 rounded border border-brand-surface-border overflow-hidden bg-brand-surface-muted hover:border-brand-gold-500 transition-colors shrink-0"
+                              title="View Aadhar Back"
+                            >
+                              <img src={app.aadharBackUrl} alt="Back" className="w-full h-full object-cover" />
+                            </button>
+                          ) : (
+                            <span className="text-[10px] text-brand-navy-400">No back</span>
+                          )}
+                        </div>
+                      </td>
+
+                      <td className="py-3 px-4">
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                            app.status === 'APPROVED'
+                              ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                              : app.status === 'REJECTED'
+                              ? 'bg-rose-100 text-rose-800 border border-rose-200'
+                              : 'bg-amber-100 text-amber-800 border border-amber-200 animate-pulse'
+                          }`}
+                        >
+                          {app.status === 'PENDING' ? 'Pending' : app.status}
+                        </span>
+                      </td>
+
+                      <td className="py-3 px-4 text-right">
+                        {app.status === 'PENDING' ? (
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenReview(app)}
+                              className="flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-lg bg-brand-navy-950 text-white hover:bg-brand-navy-900 transition-colors shadow-soft-sm"
+                            >
+                              <span>Review</span>
+                              <ArrowRight className="w-3 h-3" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedApp(app);
+                                setRejectReason('');
+                                setShowRejectModal(true);
+                              }}
+                              className="p-1.5 text-xs font-bold rounded-lg text-rose-600 hover:bg-rose-50 border border-rose-200 transition-colors"
+                              title="Reject Application"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenReview(app)}
+                            className="px-2.5 py-1 text-[11px] font-bold rounded-lg text-brand-navy-700 hover:bg-brand-surface-muted border border-brand-surface-border transition-colors"
+                          >
+                            View Details
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
@@ -2823,6 +3259,115 @@ export default function AdminDashboardPage() {
                 <span className="text-[11px] text-brand-gold-700 mt-1 block font-medium">
                   Important: Student must sign in using this exact Gmail address.
                 </span>
+              </div>
+
+              {/* Father Name & Emergency Contact */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-brand-navy-800 uppercase tracking-wider mb-1">
+                    Father's Name
+                  </label>
+                  <input
+                    type="text"
+                    value={enrollForm.fatherName}
+                    onChange={(e) => setEnrollForm({ ...enrollForm, fatherName: e.target.value })}
+                    placeholder="e.g. Shri Rajesh Sharma"
+                    className="w-full px-3 py-2 rounded-xl border border-brand-surface-border text-brand-navy-950 font-medium focus:outline-none focus:ring-2 focus:ring-brand-gold-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-brand-navy-800 uppercase tracking-wider mb-1">
+                    Emergency Contact Number
+                  </label>
+                  <input
+                    type="tel"
+                    value={enrollForm.emergencyContact}
+                    onChange={(e) => setEnrollForm({ ...enrollForm, emergencyContact: e.target.value })}
+                    placeholder="e.g. 9123456789"
+                    className="w-full px-3 py-2 rounded-xl border border-brand-surface-border text-brand-navy-950 font-medium focus:outline-none focus:ring-2 focus:ring-brand-gold-500"
+                  />
+                </div>
+              </div>
+
+              {/* Address */}
+              <div>
+                <label className="block font-bold text-brand-navy-800 uppercase tracking-wider mb-1">
+                  Residential Address
+                </label>
+                <input
+                  type="text"
+                  value={enrollForm.address}
+                  onChange={(e) => setEnrollForm({ ...enrollForm, address: e.target.value })}
+                  placeholder="e.g. Ward No. 4, Nawalpur Chowk, Deoria"
+                  className="w-full px-3 py-2 rounded-xl border border-brand-surface-border text-brand-navy-950 font-medium focus:outline-none focus:ring-2 focus:ring-brand-gold-500"
+                />
+              </div>
+
+              {/* Aadhar Photos (ImageKit Storage) */}
+              <div>
+                <label className="block font-bold text-brand-navy-800 uppercase tracking-wider mb-1.5">
+                  Aadhar Card Photos (ImageKit Upload)
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="p-3 rounded-xl border border-dashed border-brand-surface-border bg-brand-surface-muted/30">
+                    <span className="block text-[11px] font-bold text-brand-navy-800 mb-1">Aadhar Front Side</span>
+                    {enrollForm.aadharFront ? (
+                      <div className="relative group rounded-lg overflow-hidden border border-brand-surface-border aspect-video">
+                        <img src={enrollForm.aadharFront} alt="Aadhar Front" className="w-full h-full object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => setEnrollForm((prev) => ({ ...prev, aadharFront: null }))}
+                          className="absolute top-1 right-1 p-1 rounded-full bg-rose-600 text-white"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <label className="flex-1 flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg bg-white border border-brand-surface-border text-brand-navy-700 hover:bg-brand-surface-muted cursor-pointer font-bold text-[11px]">
+                          <Upload className="w-3.5 h-3.5" />
+                          <span>Files</span>
+                          <input type="file" accept="image/*" onChange={(e) => handleDeskAadharUpload(e, 'front')} className="hidden" />
+                        </label>
+                        <label className="flex-1 flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg bg-brand-navy-950 text-white hover:bg-brand-navy-900 cursor-pointer font-bold text-[11px]">
+                          <Camera className="w-3.5 h-3.5 text-brand-gold-400" />
+                          <span>Camera</span>
+                          <input type="file" accept="image/*" capture="environment" onChange={(e) => handleDeskAadharUpload(e, 'front')} className="hidden" />
+                        </label>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="p-3 rounded-xl border border-dashed border-brand-surface-border bg-brand-surface-muted/30">
+                    <span className="block text-[11px] font-bold text-brand-navy-800 mb-1">Aadhar Back Side</span>
+                    {enrollForm.aadharBack ? (
+                      <div className="relative group rounded-lg overflow-hidden border border-brand-surface-border aspect-video">
+                        <img src={enrollForm.aadharBack} alt="Aadhar Back" className="w-full h-full object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => setEnrollForm((prev) => ({ ...prev, aadharBack: null }))}
+                          className="absolute top-1 right-1 p-1 rounded-full bg-rose-600 text-white"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <label className="flex-1 flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg bg-white border border-brand-surface-border text-brand-navy-700 hover:bg-brand-surface-muted cursor-pointer font-bold text-[11px]">
+                          <Upload className="w-3.5 h-3.5" />
+                          <span>Files</span>
+                          <input type="file" accept="image/*" onChange={(e) => handleDeskAadharUpload(e, 'back')} className="hidden" />
+                        </label>
+                        <label className="flex-1 flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg bg-brand-navy-950 text-white hover:bg-brand-navy-900 cursor-pointer font-bold text-[11px]">
+                          <Camera className="w-3.5 h-3.5 text-brand-gold-400" />
+                          <span>Camera</span>
+                          <input type="file" accept="image/*" capture="environment" onChange={(e) => handleDeskAadharUpload(e, 'back')} className="hidden" />
+                        </label>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
 
               {/* Shift / Plan Selection */}
