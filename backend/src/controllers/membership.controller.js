@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import { Membership, User, FeeInvoice, AuditLog } from '../models/index.js';
 import { calculateNextBillingDate, generateInvoiceNumber, calculateDueDate, formatDateKey } from '../utils/billingCalculator.js';
 import { allocatePayment } from '../utils/paymentAllocation.js';
+import { uploadToImageKit } from '../services/imagekit.service.js';
 import { successResponse, errorResponse } from '../utils/response.js';
 import logger from '../utils/logger.js';
 
@@ -159,6 +160,12 @@ export async function createMembership(req, res, next) {
       initialPaymentInPaise = 0,
       paymentMethod = 'CASH',
       referenceNumber = '',
+      fatherName = '',
+      emergencyContact = '',
+      address = '',
+      targetExam = '',
+      aadharFront = '',
+      aadharBack = '',
     } = req.body;
 
     if (!monthlyFeeInPaise || monthlyFeeInPaise <= 0) {
@@ -180,8 +187,14 @@ export async function createMembership(req, res, next) {
           name: name || email.split('@')[0],
           email: email.toLowerCase().trim(),
           phone: phone || '',
+          fatherName: fatherName || '',
+          emergencyContact: emergencyContact || '',
+          address: address || '',
+          targetExam: targetExam || '',
           role: 'student',
           isMember: true,
+          isActive: true,
+          registrationStatus: 'APPROVED',
         });
       }
     }
@@ -189,6 +202,37 @@ export async function createMembership(req, res, next) {
     if (!targetUser) {
       return errorResponse(res, 'User ID or valid email is required to assign membership', 400);
     }
+
+    // Process Aadhar uploads to ImageKit if provided
+    try {
+      const safePrefix = targetUser.email.split('@')[0].replace(/[^a-zA-Z0-9]/g, '_');
+      const ts = Date.now();
+      if (aadharFront && !targetUser.aadharFrontUrl) {
+        const frontRes = await uploadToImageKit(
+          aadharFront,
+          `desk_aadhar_front_${safePrefix}_${ts}.jpg`,
+          '/libraryhub/aadhar'
+        );
+        targetUser.aadharFrontUrl = frontRes.url;
+      }
+      if (aadharBack && !targetUser.aadharBackUrl) {
+        const backRes = await uploadToImageKit(
+          aadharBack,
+          `desk_aadhar_back_${safePrefix}_${ts}.jpg`,
+          '/libraryhub/aadhar'
+        );
+        targetUser.aadharBackUrl = backRes.url;
+      }
+    } catch (uploadErr) {
+      logger.warn(`Could not upload desk Aadhar to ImageKit: ${uploadErr.message}`);
+    }
+
+    if (fatherName) targetUser.fatherName = fatherName;
+    if (emergencyContact) targetUser.emergencyContact = emergencyContact;
+    if (address) targetUser.address = address;
+    if (targetExam) targetUser.targetExam = targetExam;
+    targetUser.registrationStatus = 'APPROVED';
+    targetUser.isActive = true;
 
     const existingActive = await Membership.findOne({ userId: targetUser._id, status: 'active' });
     if (existingActive) {

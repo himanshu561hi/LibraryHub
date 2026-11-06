@@ -30,6 +30,29 @@ const userSchema = new mongoose.Schema(
       trim: true,
       default: '',
     },
+    fatherName: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    emergencyContact: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    address: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    aadharFrontUrl: {
+      type: String,
+      default: null,
+    },
+    aadharBackUrl: {
+      type: String,
+      default: null,
+    },
     targetExam: {
       type: String,
       trim: true,
@@ -49,6 +72,12 @@ const userSchema = new mongoose.Schema(
     isActive: {
       type: Boolean,
       default: true,
+      index: true,
+    },
+    registrationStatus: {
+      type: String,
+      enum: ['APPROVED', 'PENDING', 'REJECTED'],
+      default: 'APPROVED',
       index: true,
     },
     deactivationReason: {

@@ -201,15 +201,24 @@ export default function LoginPage() {
           )}
         </div>
 
-        {/* Footer Admin Links */}
-        <div className="pt-4 border-t border-brand-surface-border text-center">
-          <p className="text-xs text-brand-navy-500">
-            Are you a Library Hub Administrator?{' '}
+        {/* Footer Links */}
+        <div className="pt-4 border-t border-brand-surface-border text-center space-y-2">
+          <p className="text-xs text-brand-navy-600">
+            Not yet enrolled?{' '}
+            <Link
+              to="/register"
+              className="font-bold text-brand-navy-950 hover:text-brand-gold-600 underline underline-offset-2"
+            >
+              Online Admission & Registration Form →
+            </Link>
+          </p>
+          <p className="text-[11px] text-brand-navy-400">
+            Are you an Administrator?{' '}
             <Link
               to="/admin/login"
               className="font-bold text-brand-gold-600 hover:text-brand-gold-700 underline underline-offset-2"
             >
-              Sign in to Admin Console
+              Admin Console Login
             </Link>
           </p>
         </div>

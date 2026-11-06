@@ -41,9 +41,9 @@ export const navLinks = allNavLinks;
 
 export const footerQuickLinks = [
   { name: "Home", path: "/" },
-  { name: "About Us", path: "/about" },
-  { name: "Facilities", path: "/facilities" },
+  { name: "Online Admission (QR)", path: "/register" },
   { name: "Membership Plans", path: "/membership" },
+  { name: "Facilities", path: "/facilities" },
   { name: "Photo Gallery", path: "/gallery" },
 ];
 

@@ -1,9 +1,25 @@
 import { Router } from 'express';
 import { SiteSetting } from '../models/index.js';
+import {
+  submitRegistration,
+  getApplicationStatus,
+} from '../controllers/registration.controller.js';
 import { successResponse } from '../utils/response.js';
 import logger from '../utils/logger.js';
 
 const router = Router();
+
+/**
+ * POST /api/v1/public/register
+ * Public member self-registration with ImageKit Aadhar front & back upload.
+ */
+router.post('/register', submitRegistration);
+
+/**
+ * GET /api/v1/public/application-status/:query
+ * Check registration application status by email or application number.
+ */
+router.get('/application-status/:query', getApplicationStatus);
 
 /**
  * GET /api/v1/public/announcements

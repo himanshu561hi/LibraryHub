@@ -14,6 +14,8 @@ export const API_ENDPOINTS = {
   // Public
   PUBLIC: {
     ANNOUNCEMENTS: '/public/announcements',
+    REGISTER: '/public/register',
+    APPLICATION_STATUS: (query) => `/public/application-status/${encodeURIComponent(query)}`,
   },
 
   // Dashboards
@@ -69,6 +71,9 @@ export const API_ENDPOINTS = {
     STUDENT_DETAILS: (id) => `/admin/students/${id}`,
     AUDIT_LOGS: '/admin/audit-logs',
     SETTINGS: '/admin/settings',
+    APPLICATIONS: '/admin/applications',
+    APPROVE_APPLICATION: (id) => `/admin/applications/${id}/approve`,
+    REJECT_APPLICATION: (id) => `/admin/applications/${id}/reject`,
     REPORTS_COLLECTIONS: '/admin/reports/collections',
     REPORTS_ATTENDANCE: '/admin/reports/attendance',
     EXPORT_CSV: (type) => `/admin/export/${type}`,

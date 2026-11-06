@@ -12,6 +12,7 @@ import GalleryPage from './pages/GalleryPage';
 import RulesPage from './pages/RulesPage';
 import FaqPage from './pages/FaqPage';
 import ContactPage from './pages/ContactPage';
+import RegisterPage from './pages/public/RegisterPage';
 import NotFoundPage from './pages/NotFoundPage';
 
 // Portal & Dashboard Pages
@@ -35,6 +36,7 @@ export default function App() {
             <Route path="rules" element={<RulesPage />} />
             <Route path="faqs" element={<FaqPage />} />
             <Route path="contact" element={<ContactPage />} />
+            <Route path="register" element={<RegisterPage />} />
 
             {/* Authentication Pages */}
             <Route path="login" element={<LoginPage />} />

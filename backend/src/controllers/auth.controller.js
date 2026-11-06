@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 import config from '../config/index.js';
-import { User, Admin, Membership } from '../models/index.js';
+import { User, Admin, Membership, RegistrationApplication } from '../models/index.js';
 import { verifyGoogleIdToken } from '../services/googleAuth.js';
 import { checkAndDeactivateIfAbsent } from '../jobs/attendanceJob.js';
 import { generateToken, setSessionCookie, clearSessionCookie } from '../utils/token.js';
@@ -29,12 +29,58 @@ export const studentGoogleLogin = async (req, res, next) => {
       });
 
       if (!user) {
+        // Check if student has submitted a self-registration application
+        const pendingApp = await RegistrationApplication.findOne({
+          email: payload.email,
+        }).sort({ createdAt: -1 });
+
+        if (pendingApp) {
+          if (pendingApp.status === 'PENDING') {
+            logger.warn(`Pending student login attempt: ${payload.email}`);
+            return errorResponse(
+              res,
+              `Your registration application (Ref: ${pendingApp.applicationNumber}) is currently under review by Library Hub Nawalpur. You will receive an email once approved by the administrator, after which your student dashboard will be activated.`,
+              403,
+              'REGISTRATION_PENDING'
+            );
+          } else if (pendingApp.status === 'REJECTED') {
+            logger.warn(`Rejected student login attempt: ${payload.email}`);
+            return errorResponse(
+              res,
+              `Your registration application was not approved. Reason: ${pendingApp.rejectionReason || 'Requirements not met'}. Please contact the library front desk.`,
+              403,
+              'REGISTRATION_REJECTED'
+            );
+          }
+        }
+
         logger.warn(`Unenrolled student login attempt rejected: ${payload.email}`);
         return errorResponse(
           res,
-          `Access Denied: The email "${payload.email}" is not enrolled with Library Hub. Please contact the administrator or front desk to enroll before signing in.`,
+          `Access Denied: The email "${payload.email}" is not enrolled with Library Hub. Please submit your member registration form or contact the front desk before signing in.`,
           403,
           'NOT_ENROLLED'
+        );
+      }
+
+      // Block if student registration status is pending or rejected
+      if (user.registrationStatus === 'PENDING') {
+        logger.warn(`Pending registered user login attempt rejected: ${user.email}`);
+        return errorResponse(
+          res,
+          'Your registration application is currently under review by Library Hub Nawalpur. You will receive an email once approved by the administrator, after which your student dashboard will be activated.',
+          403,
+          'REGISTRATION_PENDING'
+        );
+      }
+
+      if (user.registrationStatus === 'REJECTED') {
+        logger.warn(`Rejected registered user login attempt rejected: ${user.email}`);
+        return errorResponse(
+          res,
+          'Your registration application was not approved. Please contact the library front desk.',
+          403,
+          'REGISTRATION_REJECTED'
         );
       }
 

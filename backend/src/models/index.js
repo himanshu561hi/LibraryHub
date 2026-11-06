@@ -9,4 +9,5 @@ export { EmailCampaign } from './EmailCampaign.js';
 export { EmailRecipientLog } from './EmailRecipientLog.js';
 export { AuditLog } from './AuditLog.js';
 export { SiteSetting } from './SiteSetting.js';
+export { RegistrationApplication } from './RegistrationApplication.js';
 

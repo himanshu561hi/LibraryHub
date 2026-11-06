@@ -37,6 +37,12 @@ export default function Footer() {
             <span className="font-extrabold text-brand-navy-950" style={textHaloStyle}>
               Admissions & Visit Inquiries Open
             </span>
+            <Link
+              to="/register"
+              className="ml-2 inline-flex items-center gap-1 px-3 py-1 rounded-full bg-brand-navy-950 hover:bg-brand-navy-900 text-white font-bold text-[11px] shadow-soft-sm transition-all hover:scale-105"
+            >
+              <span>Online Registration →</span>
+            </Link>
           </div>
           <div className="flex items-center gap-4 text-brand-gold-800 font-extrabold" style={textHaloStyle}>
             <span>{siteConfig.tagline}</span>

@@ -3521,6 +3521,475 @@ export default function AdminDashboardPage() {
           </div>
         </div>
       )}
+
+      {/* MODAL: REVIEW & APPROVE ADMISSION APPLICATION */}
+      {showReviewModal && selectedApp && (
+        <div className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center p-3 sm:p-4 pt-10 pb-8 sm:py-8 bg-brand-navy-950/75 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-2xl w-full p-5 sm:p-6 shadow-2xl border border-brand-surface-border my-auto relative max-h-[90vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="flex items-start justify-between pb-3 border-b border-brand-surface-border mb-4">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-brand-surface-muted text-brand-navy-800 border border-brand-surface-border">
+                    {selectedApp.applicationNumber}
+                  </span>
+                  <span
+                    className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                      selectedApp.status === 'APPROVED'
+                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                        : selectedApp.status === 'REJECTED'
+                        ? 'bg-rose-100 text-rose-800 border border-rose-200'
+                        : 'bg-amber-100 text-amber-800 border border-amber-200 animate-pulse'
+                    }`}
+                  >
+                    {selectedApp.status === 'PENDING' ? 'Pending Approval' : selectedApp.status}
+                  </span>
+                </div>
+                <h3 className="text-lg font-bold text-brand-navy-950">
+                  {selectedApp.fullName}
+                </h3>
+                <p className="text-xs text-brand-navy-500">
+                  Applied on {new Date(selectedApp.createdAt).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowReviewModal(false);
+                  setSelectedApp(null);
+                }}
+                className="p-1 rounded-lg text-brand-navy-400 hover:text-brand-navy-700 hover:bg-brand-surface-muted transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Applicant Information Grid */}
+            <div className="mb-5 p-4 rounded-xl bg-brand-surface-muted/50 border border-brand-surface-border">
+              <h4 className="text-xs font-bold text-brand-navy-900 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                <UserCheck className="w-4 h-4 text-brand-gold-600" />
+                Applicant Contact & Profile
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-brand-navy-400 block">Email Address</span>
+                  <span className="font-semibold text-brand-navy-900 break-all">{selectedApp.email}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-brand-navy-400 block">Mobile Phone</span>
+                  <span className="font-semibold text-brand-navy-900 font-mono">{selectedApp.phone}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-brand-navy-400 block">Father's Name</span>
+                  <span className="font-semibold text-brand-navy-900">{selectedApp.fatherName || 'Not specified'}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-brand-navy-400 block">Emergency Contact</span>
+                  <span className="font-semibold text-brand-navy-900 font-mono">{selectedApp.emergencyContact || 'Not specified'}</span>
+                </div>
+                <div className="sm:col-span-2">
+                  <span className="text-[10px] uppercase font-bold text-brand-navy-400 block">Target Exam / Goal</span>
+                  <span className="font-semibold text-brand-gold-800">{selectedApp.targetExam || 'General Study / Self Preparation'}</span>
+                </div>
+                <div className="sm:col-span-2">
+                  <span className="text-[10px] uppercase font-bold text-brand-navy-400 block">Residential Address</span>
+                  <span className="font-semibold text-brand-navy-800">{selectedApp.address || 'Not specified'}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Aadhar Card Photos Section */}
+            <div className="mb-5">
+              <h4 className="text-xs font-bold text-brand-navy-900 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
+                <FileText className="w-4 h-4 text-brand-gold-600" />
+                Aadhar Card Documents (ImageKit Verified)
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Front Photo */}
+                <div className="p-3 rounded-xl border border-brand-surface-border bg-white text-center hover:border-brand-gold-400 transition-colors">
+                  <span className="block text-[11px] font-bold text-brand-navy-800 mb-2">Aadhar Front Side</span>
+                  {selectedApp.aadharFrontUrl ? (
+                    <div
+                      onClick={() => setLightboxImage({ url: selectedApp.aadharFrontUrl, title: `${selectedApp.fullName} - Aadhar Front` })}
+                      className="group relative cursor-pointer overflow-hidden rounded-lg bg-brand-surface-muted border border-brand-surface-border aspect-video flex items-center justify-center"
+                    >
+                      <img
+                        src={selectedApp.aadharFrontUrl}
+                        alt="Aadhar Front"
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                        loading="lazy"
+                      />
+                      <div className="absolute inset-0 bg-brand-navy-950/40 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white text-xs font-bold transition-opacity">
+                        <span className="px-2.5 py-1 rounded-lg bg-black/60 backdrop-blur-sm flex items-center gap-1">
+                          Zoom Image
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="py-6 text-xs text-brand-navy-400 italic">No front photo provided</div>
+                  )}
+                </div>
+
+                {/* Back Photo */}
+                <div className="p-3 rounded-xl border border-brand-surface-border bg-white text-center hover:border-brand-gold-400 transition-colors">
+                  <span className="block text-[11px] font-bold text-brand-navy-800 mb-2">Aadhar Back Side</span>
+                  {selectedApp.aadharBackUrl ? (
+                    <div
+                      onClick={() => setLightboxImage({ url: selectedApp.aadharBackUrl, title: `${selectedApp.fullName} - Aadhar Back` })}
+                      className="group relative cursor-pointer overflow-hidden rounded-lg bg-brand-surface-muted border border-brand-surface-border aspect-video flex items-center justify-center"
+                    >
+                      <img
+                        src={selectedApp.aadharBackUrl}
+                        alt="Aadhar Back"
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                        loading="lazy"
+                      />
+                      <div className="absolute inset-0 bg-brand-navy-950/40 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white text-xs font-bold transition-opacity">
+                        <span className="px-2.5 py-1 rounded-lg bg-black/60 backdrop-blur-sm flex items-center gap-1">
+                          Zoom Image
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="py-6 text-xs text-brand-navy-400 italic">No back photo provided</div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Approval Form (Only if PENDING) */}
+            {selectedApp.status === 'PENDING' ? (
+              <form onSubmit={handleConfirmApproveApplication} className="space-y-4 pt-3 border-t border-brand-surface-border text-xs">
+                <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs">
+                  <span className="font-bold block">Approval & Activation Action:</span>
+                  Approving this application will immediately create their Student profile, set their active membership, and send an automated congratulatory email with dashboard access instructions.
+                </div>
+
+                {/* Shift Selector */}
+                <div>
+                  <label className="block font-bold text-brand-navy-800 uppercase tracking-wider mb-1.5">
+                    Select Member Shift & Plan *
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleApprovePlanSelect('day_shift')}
+                      className={`p-2.5 rounded-xl border text-center transition-all ${
+                        approveForm.slotType === 'day_shift'
+                          ? 'border-brand-gold-500 bg-brand-gold-50/70 font-bold text-brand-navy-950 shadow-soft-sm'
+                          : 'border-brand-surface-border bg-white text-brand-navy-700 hover:bg-brand-surface-muted'
+                      }`}
+                    >
+                      <span className="block text-xs font-bold">Day Shift</span>
+                      <span className="block text-[10px] text-brand-navy-500">7 AM – 8 PM</span>
+                      <span className="block text-xs font-bold text-brand-gold-700 mt-0.5">₹500 / mo</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleApprovePlanSelect('night_shift')}
+                      className={`p-2.5 rounded-xl border text-center transition-all ${
+                        approveForm.slotType === 'night_shift'
+                          ? 'border-brand-gold-500 bg-brand-gold-50/70 font-bold text-brand-navy-950 shadow-soft-sm'
+                          : 'border-brand-surface-border bg-white text-brand-navy-700 hover:bg-brand-surface-muted'
+                      }`}
+                    >
+                      <span className="block text-xs font-bold">Night Shift</span>
+                      <span className="block text-[10px] text-brand-navy-500">8 PM – 8 AM</span>
+                      <span className="block text-xs font-bold text-brand-gold-700 mt-0.5">₹600 / mo</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleApprovePlanSelect('full_day_24h')}
+                      className={`p-2.5 rounded-xl border text-center transition-all ${
+                        approveForm.slotType === 'full_day_24h'
+                          ? 'border-brand-gold-500 bg-brand-gold-50/70 font-bold text-brand-navy-950 shadow-soft-sm'
+                          : 'border-brand-surface-border bg-white text-brand-navy-700 hover:bg-brand-surface-muted'
+                      }`}
+                    >
+                      <span className="block text-xs font-bold">24 Hours</span>
+                      <span className="block text-[10px] text-brand-navy-500">Round the Clock</span>
+                      <span className="block text-xs font-bold text-brand-gold-700 mt-0.5">₹800 / mo</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Monthly Fee & Initial Payment */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-bold text-brand-navy-800 uppercase tracking-wider mb-1">
+                      Monthly Fee (₹) *
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2 font-bold text-brand-navy-400">₹</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        required
+                        value={approveForm.monthlyFee}
+                        onChange={(e) => setApproveForm({ ...approveForm, monthlyFee: e.target.value })}
+                        className="w-full pl-8 pr-3 py-2 rounded-xl border border-brand-surface-border text-brand-navy-950 font-bold text-sm focus:outline-none focus:ring-2 focus:ring-brand-gold-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-brand-navy-800 uppercase tracking-wider mb-1">
+                      Initial Payment Collected (₹)
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2 font-bold text-brand-navy-400">₹</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={approveForm.initialPayment}
+                        onChange={(e) => setApproveForm({ ...approveForm, initialPayment: e.target.value })}
+                        className="w-full pl-8 pr-3 py-2 rounded-xl border border-brand-surface-border text-brand-navy-950 font-bold text-sm focus:outline-none focus:ring-2 focus:ring-brand-gold-500"
+                      />
+                    </div>
+                    <p className="text-[10px] text-brand-navy-500 mt-1">
+                      Excess payment above monthly fee will be credited as Advance.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Payment Method & Notes */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-bold text-brand-navy-800 uppercase tracking-wider mb-1">
+                      Payment Mode
+                    </label>
+                    <select
+                      value={approveForm.paymentMethod}
+                      onChange={(e) => setApproveForm({ ...approveForm, paymentMethod: e.target.value })}
+                      className="w-full px-3 py-2 rounded-xl border border-brand-surface-border text-brand-navy-900 font-semibold focus:outline-none focus:ring-2 focus:ring-brand-gold-500"
+                    >
+                      <option value="CASH">Cash</option>
+                      <option value="UPI">UPI / QR Code</option>
+                      <option value="BANK_TRANSFER">Bank Transfer / IMPS</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-brand-navy-800 uppercase tracking-wider mb-1">
+                      Admin Notes / Remarks
+                    </label>
+                    <input
+                      type="text"
+                      value={approveForm.notes}
+                      onChange={(e) => setApproveForm({ ...approveForm, notes: e.target.value })}
+                      placeholder="e.g. Desk #12 assigned, verified college ID"
+                      className="w-full px-3 py-2 rounded-xl border border-brand-surface-border text-brand-navy-950 font-medium focus:outline-none focus:ring-2 focus:ring-brand-gold-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Modal Actions */}
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-brand-surface-border">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRejectReason('');
+                      setShowRejectModal(true);
+                    }}
+                    className="w-full sm:w-auto px-4 py-2 rounded-xl text-rose-700 hover:bg-rose-50 border border-rose-200 font-bold transition-colors"
+                  >
+                    Reject Application
+                  </button>
+
+                  <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                    <button
+                      type="button"
+                      disabled={approvingApp}
+                      onClick={() => {
+                        setShowReviewModal(false);
+                        setSelectedApp(null);
+                      }}
+                      className="px-4 py-2 rounded-xl text-brand-navy-700 hover:bg-brand-surface-muted font-semibold transition-colors"
+                    >
+                      Cancel
+                    </button>
+
+                    <button
+                      type="submit"
+                      disabled={approvingApp}
+                      className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-brand-navy-950 hover:bg-brand-navy-900 text-white font-bold transition-all shadow-soft-sm disabled:opacity-50"
+                    >
+                      {approvingApp ? (
+                        <Loader2 className="w-4 h-4 animate-spin text-brand-gold-400" />
+                      ) : (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                      )}
+                      <span>Approve & Activate Student Portal</span>
+                    </button>
+                  </div>
+                </div>
+              </form>
+            ) : selectedApp.status === 'APPROVED' ? (
+              <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs flex items-center justify-between">
+                <div>
+                  <span className="font-bold block flex items-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    Application Approved & Student Active
+                  </span>
+                  <span className="text-[11px] text-emerald-700 mt-0.5 block">
+                    Reviewed on {new Date(selectedApp.reviewedAt).toLocaleDateString('en-IN')}. The student can access their dashboard anytime.
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowReviewModal(false);
+                    setSelectedApp(null);
+                  }}
+                  className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs"
+                >
+                  Close
+                </button>
+              </div>
+            ) : (
+              <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-900 text-xs flex items-center justify-between">
+                <div>
+                  <span className="font-bold block flex items-center gap-1.5">
+                    <X className="w-4 h-4 text-rose-600" />
+                    Application Rejected
+                  </span>
+                  <span className="text-[11px] text-rose-700 mt-0.5 block">
+                    Reason: {selectedApp.rejectionReason || 'No specific reason entered.'}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowReviewModal(false);
+                    setSelectedApp(null);
+                  }}
+                  className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs"
+                >
+                  Close
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: REJECT APPLICATION */}
+      {showRejectModal && selectedApp && (
+        <div className="fixed inset-0 z-[110] flex items-start sm:items-center justify-center p-3 sm:p-4 pt-14 pb-8 sm:py-8 bg-brand-navy-950/75 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-md w-full p-5 sm:p-6 shadow-2xl border border-brand-surface-border my-auto relative animate-in fade-in zoom-in duration-150">
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <h3 className="text-base font-bold text-rose-900 flex items-center gap-2">
+                  <AlertTriangle className="w-5 h-5 text-rose-600" />
+                  <span>Reject Registration Application</span>
+                </h3>
+                <p className="text-xs text-brand-navy-500 mt-0.5">
+                  Applicant: <span className="font-bold text-brand-navy-900">{selectedApp.fullName}</span> ({selectedApp.applicationNumber})
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowRejectModal(false);
+                  setRejectReason('');
+                }}
+                className="p-1 rounded-lg text-brand-navy-400 hover:text-brand-navy-700 hover:bg-brand-surface-muted"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-900 mb-4">
+              <p className="text-[11px] text-rose-700">
+                The applicant will receive an automated email notice explaining why their admission could not be approved at this time.
+              </p>
+            </div>
+
+            <form onSubmit={handleConfirmRejectApplication} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-brand-navy-800 uppercase tracking-wider mb-1">
+                  Reason for Rejection *
+                </label>
+                <textarea
+                  rows={3}
+                  required
+                  value={rejectReason}
+                  onChange={(e) => setRejectReason(e.target.value)}
+                  placeholder="e.g. Incomplete Aadhar document, seats full for selected shift, etc."
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-brand-surface-border text-brand-navy-950 font-medium focus:outline-none focus:ring-2 focus:ring-rose-500"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-brand-surface-border">
+                <button
+                  type="button"
+                  disabled={rejectingApp}
+                  onClick={() => {
+                    setShowRejectModal(false);
+                    setRejectReason('');
+                  }}
+                  className="px-4 py-2 text-xs font-semibold rounded-xl text-brand-navy-700 hover:bg-brand-surface-muted transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={rejectingApp}
+                  className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-xl bg-rose-600 hover:bg-rose-700 text-white transition-colors shadow-soft-sm disabled:opacity-50"
+                >
+                  {rejectingApp && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  <span>Confirm Rejection</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* LIGHTBOX MODAL: FULLSCREEN AADHAR PHOTO ZOOM */}
+      {lightboxImage && (
+        <div
+          onClick={() => setLightboxImage(null)}
+          className="fixed inset-0 z-[120] flex flex-col items-center justify-center p-4 bg-black/90 backdrop-blur-md cursor-pointer animate-in fade-in duration-150"
+        >
+          <div className="w-full max-w-4xl flex items-center justify-between text-white text-xs font-bold mb-3 px-2">
+            <span>{lightboxImage.title || 'Document Inspection'}</span>
+            <div className="flex items-center gap-2">
+              <a
+                href={lightboxImage.url}
+                target="_blank"
+                rel="noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="px-2.5 py-1 rounded bg-white/20 hover:bg-white/30 text-white transition-colors"
+              >
+                Open Full Original
+              </a>
+              <button
+                type="button"
+                onClick={() => setLightboxImage(null)}
+                className="p-1 rounded bg-white/20 hover:bg-white/30 text-white transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="max-h-[82vh] max-w-[92vw] overflow-hidden rounded-xl border border-white/20 shadow-2xl bg-black flex items-center justify-center"
+          >
+            <img
+              src={lightboxImage.url}
+              alt={lightboxImage.title || 'Document Preview'}
+              className="max-h-[82vh] max-w-[92vw] object-contain"
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

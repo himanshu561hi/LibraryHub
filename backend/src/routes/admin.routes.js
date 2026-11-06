@@ -6,6 +6,9 @@ import {
   exportCsvReport,
   getSiteSettings,
   updateSiteSetting,
+  listRegistrationApplications,
+  approveRegistrationApplication,
+  rejectRegistrationApplication,
 } from '../controllers/admin.controller.js';
 import { authenticateToken, requireRole } from '../middlewares/auth.js';
 
@@ -13,6 +16,11 @@ const router = Router();
 
 router.use(authenticateToken);
 router.use(requireRole('admin', 'super_admin'));
+
+// Member Registration Applications
+router.get('/applications', listRegistrationApplications);
+router.post('/applications/:id/approve', approveRegistrationApplication);
+router.post('/applications/:id/reject', rejectRegistrationApplication);
 
 // Students directory & profile
 router.get('/students', listStudents);
