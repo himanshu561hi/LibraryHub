@@ -2707,27 +2707,31 @@ export default function AdminDashboardPage() {
       {/* POPUP PREVIEW MODAL FOR ADMIN */}
       {previewPopupOpen && promoSettings.entry_popup?.imageUrl && (
         <div
-          className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-brand-navy-950/75 backdrop-blur-sm"
+          className="fixed inset-0 z-[120] flex items-center justify-center p-3 sm:p-4 bg-brand-navy-950/80 backdrop-blur-sm cursor-pointer"
           role="dialog"
           aria-modal="true"
+          onClick={() => setPreviewPopupOpen(false)}
         >
-          <div className="relative z-10 w-full max-w-lg mx-auto bg-white rounded-2xl p-2 shadow-2xl border border-white/20">
+          <div
+            className="relative z-10 inline-block max-w-[94vw] sm:max-w-[88vw] max-h-[86vh] mx-auto bg-white p-1 sm:p-1.5 rounded-2xl shadow-2xl border border-white/30 cursor-default"
+            onClick={(e) => e.stopPropagation()}
+          >
             <button
               type="button"
               onClick={() => setPreviewPopupOpen(false)}
-              className="absolute -top-3.5 -right-3.5 z-20 w-9 h-9 rounded-full bg-white text-brand-navy-900 hover:bg-brand-gold-500 hover:text-white transition-all shadow-xl flex items-center justify-center border-2 border-brand-navy-950"
+              className="absolute -top-3 -right-3 sm:-top-3.5 sm:-right-3.5 z-30 w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-white text-brand-navy-950 hover:bg-brand-gold-500 hover:text-white transition-all shadow-2xl flex items-center justify-center border-2 border-brand-navy-950"
               aria-label="Close Preview"
             >
-              <X className="w-5 h-5 stroke-[2.5]" />
+              <X className="w-4 h-4 sm:w-5 sm:h-5 stroke-[2.5]" />
             </button>
-            <div className="relative overflow-hidden rounded-xl bg-black max-h-[75vh] flex flex-col items-center justify-center">
+            <div className="relative overflow-hidden rounded-2xl flex flex-col items-center justify-center">
               <img
                 src={promoSettings.entry_popup.imageUrl}
                 alt={promoSettings.entry_popup.title || 'Preview'}
-                className="w-full h-auto max-h-[70vh] object-contain rounded-xl"
+                className="w-auto h-auto max-w-[92vw] sm:max-w-[85vw] md:max-w-[720px] max-h-[82vh] object-contain block mx-auto rounded-2xl"
               />
               {promoSettings.entry_popup.title && (
-                <div className="w-full bg-gradient-to-t from-black/80 via-black/40 to-transparent p-3 absolute bottom-0 inset-x-0 text-white text-center font-bold text-sm">
+                <div className="w-full bg-gradient-to-t from-black/85 via-black/45 to-transparent p-3 absolute bottom-0 inset-x-0 text-white text-center font-bold text-xs sm:text-sm">
                   {promoSettings.entry_popup.title}
                 </div>
               )}
