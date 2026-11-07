@@ -36,6 +36,9 @@ import {
   Camera,
   ArrowRight,
   Upload,
+  ZoomIn,
+  Phone,
+  Printer,
 } from 'lucide-react';
 
 export default function AdminDashboardPage() {
@@ -91,6 +94,7 @@ export default function AdminDashboardPage() {
     fatherName: '',
     emergencyContact: '',
     address: '',
+    photo: null,
     aadharFront: null,
     aadharBack: null,
     planType: 'day_shift',
@@ -187,9 +191,12 @@ export default function AdminDashboardPage() {
   const [approvingApp, setApprovingApp] = useState(false);
   const [rejectingApp, setRejectingApp] = useState(false);
   const [lightboxImage, setLightboxImage] = useState(null);
-  const [appFilterStatus, setAppFilterStatus] = useState('ALL');
+  const [appFilterStatus, setAppFilterStatus] = useState('PENDING');
   const [appSearch, setAppSearch] = useState('');
+  const [selectedStudentProfile, setSelectedStudentProfile] = useState(null);
+  const [showStudentProfileModal, setShowStudentProfileModal] = useState(false);
   const [approveForm, setApproveForm] = useState({
+    joiningDate: new Date().toISOString().split('T')[0],
     slotType: 'day_shift',
     planName: 'Day Shift Plan (7 AM – 8 PM)',
     shiftTimings: '7:00 AM – 8:00 PM',
@@ -462,7 +469,9 @@ export default function AdminDashboardPage() {
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, width, height);
         const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
-        if (side === 'front') {
+        if (side === 'photo') {
+          setEnrollForm((prev) => ({ ...prev, photo: dataUrl }));
+        } else if (side === 'front') {
           setEnrollForm((prev) => ({ ...prev, aadharFront: dataUrl }));
         } else {
           setEnrollForm((prev) => ({ ...prev, aadharBack: dataUrl }));
@@ -498,6 +507,7 @@ export default function AdminDashboardPage() {
   const handleOpenReview = (app) => {
     setSelectedApp(app);
     setApproveForm({
+      joiningDate: new Date().toISOString().split('T')[0],
       slotType: 'day_shift',
       planName: 'Day Shift Plan (7 AM – 8 PM)',
       shiftTimings: '7:00 AM – 8:00 PM',
@@ -554,9 +564,12 @@ export default function AdminDashboardPage() {
         approveForm
       );
       if (res && res.success) {
+        const approvedId = selectedApp._id;
         setShowReviewModal(false);
         setSelectedApp(null);
-        fetchApplications();
+        setApplications((prev) => prev.filter((a) => a._id !== approvedId));
+        setPendingAppsCount((prev) => Math.max(0, prev - 1));
+        fetchApplications(appFilterStatus);
         fetchMemberships();
         fetchSummaryAndCode();
         alert('Application approved! Student enrolled and confirmation email sent.');
@@ -581,11 +594,14 @@ export default function AdminDashboardPage() {
         { reason: rejectReason.trim() }
       );
       if (res && res.success) {
+        const rejectedId = selectedApp._id;
         setShowRejectModal(false);
         setShowReviewModal(false);
         setSelectedApp(null);
         setRejectReason('');
-        fetchApplications();
+        setApplications((prev) => prev.filter((a) => a._id !== rejectedId));
+        setPendingAppsCount((prev) => Math.max(0, prev - 1));
+        fetchApplications(appFilterStatus);
         alert('Application rejected and notice email sent to applicant.');
       }
     } catch (err) {
@@ -821,6 +837,7 @@ export default function AdminDashboardPage() {
         emergencyContact: enrollForm.emergencyContact?.trim() || '',
         address: enrollForm.address?.trim() || '',
         targetExam: enrollForm.targetExam?.trim() || '',
+        photo: enrollForm.photo || '',
         aadharFront: enrollForm.aadharFront || '',
         aadharBack: enrollForm.aadharBack || '',
         joiningDate: enrollForm.joiningDate,
@@ -848,6 +865,7 @@ export default function AdminDashboardPage() {
           fatherName: '',
           emergencyContact: '',
           address: '',
+          photo: null,
           aadharFront: null,
           aadharBack: null,
           planType: 'day_shift',
@@ -1358,8 +1376,8 @@ export default function AdminDashboardPage() {
                 }}
                 className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-brand-surface-border bg-white text-brand-navy-900 font-semibold focus:outline-none focus:ring-2 focus:ring-brand-gold-500"
               >
-                <option value="ALL">All Applications</option>
-                <option value="PENDING">Pending Review Only</option>
+                <option value="PENDING">Pending Review (New Students)</option>
+                <option value="ALL">All Applications (Full History)</option>
                 <option value="APPROVED">Approved Admissions</option>
                 <option value="REJECTED">Rejected Applications</option>
               </select>
@@ -1373,7 +1391,15 @@ export default function AdminDashboardPage() {
             </div>
           ) : applications.length === 0 ? (
             <div className="py-12 text-center text-xs text-brand-navy-500">
-              No registration applications found.
+              <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
+              <p className="font-bold text-brand-navy-900 text-sm">
+                {appFilterStatus === 'PENDING' ? 'No Pending Admission Requests' : 'No Applications Found'}
+              </p>
+              <p className="text-brand-navy-500 mt-1 max-w-md mx-auto">
+                {appFilterStatus === 'PENDING'
+                  ? 'All online admissions have been approved and activated into active student memberships. New submissions will appear here automatically.'
+                  : 'No registration applications match the current filter criteria.'}
+              </p>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -1393,11 +1419,29 @@ export default function AdminDashboardPage() {
                   {applications.map((app) => (
                     <tr key={app._id} className="hover:bg-brand-surface-muted/50 transition-colors">
                       <td className="py-3 px-4">
-                        <span className="font-bold text-brand-navy-950 block">{app.name || app.fullName}</span>
-                        <span className="font-mono text-[10px] text-brand-navy-400 block">{app.applicationNumber}</span>
-                        <span className="text-[10px] text-brand-navy-400 block">
-                          {new Date(app.createdAt).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' })}
-                        </span>
+                        <div className="flex items-center gap-2.5">
+                          {app.photoUrl ? (
+                            <button
+                              type="button"
+                              onClick={() => setLightboxImage({ url: app.photoUrl, title: `${app.name || app.fullName} - Photo` })}
+                              className="w-9 h-9 rounded-full overflow-hidden border border-brand-surface-border shrink-0 hover:ring-2 hover:ring-brand-gold-500 transition-all"
+                              title="Inspect Photo"
+                            >
+                              <img src={app.photoUrl} alt="Photo" className="w-full h-full object-cover" />
+                            </button>
+                          ) : (
+                            <div className="w-9 h-9 rounded-full bg-brand-surface-muted border border-brand-surface-border flex items-center justify-center text-brand-navy-400 font-bold shrink-0 text-xs">
+                              {(app.name || app.fullName || 'S').charAt(0).toUpperCase()}
+                            </div>
+                          )}
+                          <div>
+                            <span className="font-bold text-brand-navy-950 block">{app.name || app.fullName}</span>
+                            <span className="font-mono text-[10px] text-brand-navy-400 block">{app.applicationNumber}</span>
+                            <span className="text-[10px] text-brand-navy-400 block">
+                              {new Date(app.createdAt).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' })}
+                            </span>
+                          </div>
+                        </div>
                       </td>
 
                       <td className="py-3 px-4">
@@ -1646,9 +1690,27 @@ export default function AdminDashboardPage() {
                   {filteredMemberships.map((m) => (
                       <tr key={m._id} className="hover:bg-brand-surface-muted/50 transition-colors">
                         <td className="py-3 px-4">
-                          <span className="font-bold text-brand-navy-950 block">{m.userId?.name || 'Unknown'}</span>
-                          <span className="text-[11px] text-brand-navy-500">{m.userId?.email}</span>
-                          {m.userId?.phone && <span className="text-[10px] text-brand-navy-400 block font-mono">{m.userId.phone}</span>}
+                          <div className="flex items-center gap-2.5">
+                            {m.userId?.picture ? (
+                              <button
+                                type="button"
+                                onClick={() => setLightboxImage({ url: m.userId.picture, title: `${m.userId?.name} - Photo` })}
+                                className="w-9 h-9 rounded-full overflow-hidden border border-brand-surface-border shrink-0 hover:ring-2 hover:ring-brand-gold-500 transition-all shadow-soft-sm"
+                                title="Inspect Student Photo"
+                              >
+                                <img src={m.userId.picture} alt="Avatar" className="w-full h-full object-cover" />
+                              </button>
+                            ) : (
+                              <div className="w-9 h-9 rounded-full bg-brand-surface-muted border border-brand-surface-border flex items-center justify-center text-brand-navy-400 font-bold shrink-0 text-xs">
+                                {(m.userId?.name || 'S').charAt(0).toUpperCase()}
+                              </div>
+                            )}
+                            <div>
+                              <span className="font-bold text-brand-navy-950 block">{m.userId?.name || 'Unknown'}</span>
+                              <span className="text-[11px] text-brand-navy-500 block">{m.userId?.email}</span>
+                              {m.userId?.phone && <span className="text-[10px] text-brand-navy-400 block font-mono">{m.userId.phone}</span>}
+                            </div>
+                          </div>
                         </td>
                         <td className="py-3 px-4">
                           <span className="font-semibold text-brand-navy-900 block">{m.planName}</span>
@@ -1704,6 +1766,20 @@ export default function AdminDashboardPage() {
                         </td>
                         <td className="py-3 px-4 text-right">
                           <div className="flex items-center justify-end gap-1.5">
+                            {/* Eye button: View Student Full Profile & Identity Documents */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedStudentProfile(m);
+                                setShowStudentProfileModal(true);
+                              }}
+                              className="px-2 py-1 rounded text-[11px] font-bold bg-brand-surface-muted hover:bg-brand-gold-50 text-brand-navy-800 hover:text-brand-navy-950 border border-brand-surface-border hover:border-brand-gold-400 transition-colors flex items-center gap-1"
+                              title="View Student Full Profile, Father Name, Mobile & Aadhar"
+                            >
+                              <Eye className="w-3.5 h-3.5 text-brand-gold-600" />
+                              <span className="hidden md:inline">Profile</span>
+                            </button>
+
                             <button
                               type="button"
                               onClick={() => handleOpenEditModal(m)}
@@ -3305,6 +3381,46 @@ export default function AdminDashboardPage() {
                 />
               </div>
 
+              {/* Student Photo / Live Selfie (ImageKit Storage) */}
+              <div>
+                <label className="block font-bold text-brand-navy-800 uppercase tracking-wider mb-1.5">
+                  Student Photo / Live Selfie (ImageKit Upload)
+                </label>
+                <div className="p-3 rounded-xl border border-dashed border-brand-surface-border bg-brand-surface-muted/30">
+                  {enrollForm.photo ? (
+                    <div className="flex items-center gap-3">
+                      <div className="relative w-16 h-16 rounded-xl overflow-hidden border border-brand-surface-border shrink-0 shadow-soft-sm">
+                        <img src={enrollForm.photo} alt="Student Photo" className="w-full h-full object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => setEnrollForm((prev) => ({ ...prev, photo: null }))}
+                          className="absolute top-1 right-1 p-0.5 rounded-full bg-rose-600 text-white hover:bg-rose-700 transition-colors"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                      <div className="text-xs">
+                        <span className="font-bold text-brand-navy-900 block">Photo attached</span>
+                        <span className="text-[11px] text-brand-navy-500">Uploaded to ImageKit & stored as student profile avatar.</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <label className="flex-1 flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg bg-white border border-brand-surface-border text-brand-navy-700 hover:bg-brand-surface-muted cursor-pointer font-bold text-[11px] transition-colors">
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>Upload File</span>
+                        <input type="file" accept="image/*" onChange={(e) => handleDeskAadharUpload(e, 'photo')} className="hidden" />
+                      </label>
+                      <label className="flex-1 flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg bg-brand-navy-950 text-white hover:bg-brand-navy-900 cursor-pointer font-bold text-[11px] transition-colors">
+                        <Camera className="w-3.5 h-3.5 text-brand-gold-400" />
+                        <span>Take Selfie</span>
+                        <input type="file" accept="image/*" capture="user" onChange={(e) => handleDeskAadharUpload(e, 'photo')} className="hidden" />
+                      </label>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               {/* Aadhar Photos (ImageKit Storage) */}
               <div>
                 <label className="block font-bold text-brand-navy-800 uppercase tracking-wider mb-1.5">
@@ -4074,29 +4190,48 @@ export default function AdminDashboardPage() {
           <div className="bg-white rounded-2xl max-w-2xl w-full p-5 sm:p-6 shadow-2xl border border-brand-surface-border my-auto relative max-h-[90vh] overflow-y-auto">
             {/* Modal Header */}
             <div className="flex items-start justify-between pb-3 border-b border-brand-surface-border mb-4">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-brand-surface-muted text-brand-navy-800 border border-brand-surface-border">
-                    {selectedApp.applicationNumber}
-                  </span>
-                  <span
-                    className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                      selectedApp.status === 'APPROVED'
-                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                        : selectedApp.status === 'REJECTED'
-                        ? 'bg-rose-100 text-rose-800 border border-rose-200'
-                        : 'bg-amber-100 text-amber-800 border border-amber-200 animate-pulse'
-                    }`}
+              <div className="flex items-start gap-3">
+                {selectedApp.photoUrl ? (
+                  <button
+                    type="button"
+                    onClick={() => setLightboxImage({ url: selectedApp.photoUrl, title: `${selectedApp.fullName} - Student Photo` })}
+                    className="w-13 h-13 rounded-xl overflow-hidden border border-brand-surface-border shrink-0 hover:ring-2 hover:ring-brand-gold-500 transition-all shadow-soft-sm group relative"
+                    title="Click to zoom photo"
                   >
-                    {selectedApp.status === 'PENDING' ? 'Pending Approval' : selectedApp.status}
-                  </span>
+                    <img src={selectedApp.photoUrl} alt="Photo" className="w-full h-full object-cover" />
+                    <div className="absolute inset-0 bg-brand-navy-950/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                      <ZoomIn className="w-4 h-4 text-white" />
+                    </div>
+                  </button>
+                ) : (
+                  <div className="w-13 h-13 rounded-xl bg-brand-surface-muted border border-brand-surface-border flex items-center justify-center text-brand-navy-400 font-bold shrink-0 text-xl shadow-soft-sm">
+                    {(selectedApp.fullName || 'S').charAt(0).toUpperCase()}
+                  </div>
+                )}
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-brand-surface-muted text-brand-navy-800 border border-brand-surface-border">
+                      {selectedApp.applicationNumber}
+                    </span>
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                        selectedApp.status === 'APPROVED'
+                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                          : selectedApp.status === 'REJECTED'
+                          ? 'bg-rose-100 text-rose-800 border border-rose-200'
+                          : 'bg-amber-100 text-amber-800 border border-amber-200 animate-pulse'
+                      }`}
+                    >
+                      {selectedApp.status === 'PENDING' ? 'Pending Approval' : selectedApp.status}
+                    </span>
+                  </div>
+                  <h3 className="text-lg font-bold text-brand-navy-950">
+                    {selectedApp.fullName}
+                  </h3>
+                  <p className="text-xs text-brand-navy-500">
+                    Applied on {new Date(selectedApp.createdAt).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  </p>
                 </div>
-                <h3 className="text-lg font-bold text-brand-navy-950">
-                  {selectedApp.fullName}
-                </h3>
-                <p className="text-xs text-brand-navy-500">
-                  Applied on {new Date(selectedApp.createdAt).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                </p>
               </div>
 
               <button
@@ -4145,13 +4280,38 @@ export default function AdminDashboardPage() {
               </div>
             </div>
 
-            {/* Aadhar Card Photos Section */}
+            {/* Submitted Documents & Verification Section */}
             <div className="mb-5">
               <h4 className="text-xs font-bold text-brand-navy-900 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
                 <FileText className="w-4 h-4 text-brand-gold-600" />
-                Aadhar Card Documents (ImageKit Verified)
+                Submitted Documents & Identity Verification (ImageKit)
               </h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {/* Student Photo */}
+                <div className="p-3 rounded-xl border border-brand-surface-border bg-white text-center hover:border-brand-gold-400 transition-colors">
+                  <span className="block text-[11px] font-bold text-brand-navy-800 mb-2">Student Photo / Selfie</span>
+                  {selectedApp.photoUrl ? (
+                    <div
+                      onClick={() => setLightboxImage({ url: selectedApp.photoUrl, title: `${selectedApp.fullName} - Student Photo` })}
+                      className="group relative cursor-pointer overflow-hidden rounded-lg bg-brand-surface-muted border border-brand-surface-border aspect-video flex items-center justify-center"
+                    >
+                      <img
+                        src={selectedApp.photoUrl}
+                        alt="Student Photo"
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                        loading="lazy"
+                      />
+                      <div className="absolute inset-0 bg-brand-navy-950/40 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white text-xs font-bold transition-opacity">
+                        <span className="px-2.5 py-1 rounded-lg bg-black/60 backdrop-blur-sm flex items-center gap-1">
+                          Zoom Image
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="py-6 text-xs text-brand-navy-400 italic">No photo provided</div>
+                  )}
+                </div>
+
                 {/* Front Photo */}
                 <div className="p-3 rounded-xl border border-brand-surface-border bg-white text-center hover:border-brand-gold-400 transition-colors">
                   <span className="block text-[11px] font-bold text-brand-navy-800 mb-2">Aadhar Front Side</span>
@@ -4260,6 +4420,24 @@ export default function AdminDashboardPage() {
                       <span className="block text-xs font-bold text-brand-gold-700 mt-0.5">₹800 / mo</span>
                     </button>
                   </div>
+                </div>
+
+                {/* Member Joining Date */}
+                <div>
+                  <label className="block font-bold text-brand-navy-800 uppercase tracking-wider mb-1 flex items-center justify-between">
+                    <span>Member Joining Date *</span>
+                    <span className="text-[10px] text-brand-gold-700 font-semibold lowercase">previous, today or upcoming allowed</span>
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={approveForm.joiningDate}
+                    onChange={(e) => setApproveForm({ ...approveForm, joiningDate: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-brand-surface-border text-brand-navy-950 font-bold text-sm focus:outline-none focus:ring-2 focus:ring-brand-gold-500 bg-white"
+                  />
+                  <p className="text-[10px] text-brand-navy-500 mt-1">
+                    Monthly billing cycle and attendance eligibility will start from this date. Previous or upcoming dates are both accepted.
+                  </p>
                 </div>
 
                 {/* Monthly Fee & Initial Payment */}
@@ -4493,6 +4671,291 @@ export default function AdminDashboardPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: VIEW FULL STUDENT PROFILE & IDENTITY DOCUMENTS */}
+      {showStudentProfileModal && selectedStudentProfile && (
+        <div className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center p-3 sm:p-4 pt-10 pb-8 sm:py-8 bg-brand-navy-950/75 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-2xl w-full p-5 sm:p-6 shadow-2xl border border-brand-surface-border my-auto relative max-h-[90vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="flex items-start justify-between pb-3 border-b border-brand-surface-border mb-4">
+              <div className="flex items-center gap-3">
+                {selectedStudentProfile.userId?.picture ? (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setLightboxImage({
+                        url: selectedStudentProfile.userId.picture,
+                        title: `${selectedStudentProfile.userId?.name} - Photo`,
+                      })
+                    }
+                    className="w-14 h-14 rounded-xl overflow-hidden border border-brand-surface-border shrink-0 hover:ring-2 hover:ring-brand-gold-500 transition-all shadow-soft-sm group relative"
+                    title="Click to zoom photo"
+                  >
+                    <img
+                      src={selectedStudentProfile.userId.picture}
+                      alt="Student"
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute inset-0 bg-brand-navy-950/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                      <ZoomIn className="w-4 h-4 text-white" />
+                    </div>
+                  </button>
+                ) : (
+                  <div className="w-14 h-14 rounded-xl bg-brand-surface-muted border border-brand-surface-border flex items-center justify-center text-brand-navy-400 font-bold shrink-0 text-xl shadow-soft-sm">
+                    {(selectedStudentProfile.userId?.name || 'S').charAt(0).toUpperCase()}
+                  </div>
+                )}
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                        selectedStudentProfile.status === 'active'
+                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                          : 'bg-rose-100 text-rose-800 border border-rose-200'
+                      }`}
+                    >
+                      {selectedStudentProfile.status === 'active' ? 'Active Member' : 'Inactive Member'}
+                    </span>
+                    <span className="font-mono text-[11px] font-bold px-2 py-0.5 rounded bg-brand-surface-muted text-brand-navy-800 border border-brand-surface-border">
+                      {selectedStudentProfile.planName}
+                    </span>
+                  </div>
+                  <h3 className="text-lg font-bold text-brand-navy-950">
+                    {selectedStudentProfile.userId?.name || 'Student Member'}
+                  </h3>
+                  <p className="text-xs text-brand-navy-500">
+                    Admission Date: {new Date(selectedStudentProfile.joiningDate).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' })}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowStudentProfileModal(false);
+                  setSelectedStudentProfile(null);
+                }}
+                className="p-1 rounded-lg text-brand-navy-400 hover:text-brand-navy-700 hover:bg-brand-surface-muted transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Quick Contact & Plan Summary */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-3 rounded-xl bg-brand-surface-muted/60 border border-brand-surface-border mb-4 text-xs">
+              <div>
+                <span className="text-[10px] uppercase font-bold text-brand-navy-400 block">Monthly Fee</span>
+                <span className="font-bold text-brand-navy-950 text-sm">
+                  ₹{(selectedStudentProfile.monthlyFeeInPaise / 100).toLocaleString('en-IN')}
+                </span>
+              </div>
+              <div>
+                <span className="text-[10px] uppercase font-bold text-brand-navy-400 block">Shift Timings</span>
+                <span className="font-semibold text-brand-navy-900 block truncate" title={selectedStudentProfile.shiftTimings}>
+                  {selectedStudentProfile.shiftTimings}
+                </span>
+              </div>
+              <div>
+                <span className="text-[10px] uppercase font-bold text-brand-navy-400 block">Student Mobile</span>
+                {selectedStudentProfile.userId?.phone ? (
+                  <a
+                    href={`tel:${selectedStudentProfile.userId.phone}`}
+                    className="font-bold text-brand-gold-700 hover:underline font-mono"
+                  >
+                    {selectedStudentProfile.userId.phone}
+                  </a>
+                ) : (
+                  <span className="text-brand-navy-400 italic">Not set</span>
+                )}
+              </div>
+              <div>
+                <span className="text-[10px] uppercase font-bold text-brand-navy-400 block">Fee Status</span>
+                {selectedStudentProfile.billingSummary?.isAdvancePaid ? (
+                  <span className="text-[11px] font-bold text-purple-700">✓ Advance Paid</span>
+                ) : selectedStudentProfile.billingSummary?.totalDuePaise > 0 ? (
+                  <span className="text-[11px] font-bold text-rose-700">
+                    Due ₹{(selectedStudentProfile.billingSummary.totalDuePaise / 100).toLocaleString('en-IN')}
+                  </span>
+                ) : (
+                  <span className="text-[11px] font-bold text-emerald-700">✓ Cleared</span>
+                )}
+              </div>
+            </div>
+
+            {/* Personal & Family Information */}
+            <div className="mb-4 p-4 rounded-xl bg-white border border-brand-surface-border shadow-soft-sm">
+              <h4 className="text-xs font-bold text-brand-navy-900 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                <UserCheck className="w-4 h-4 text-brand-gold-600" />
+                Personal & Family Details
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-brand-navy-400 block">Student Google Email</span>
+                  <span className="font-semibold text-brand-navy-900 break-all">{selectedStudentProfile.userId?.email}</span>
+                </div>
+
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-brand-navy-400 block">Target Exam / Goal</span>
+                  <span className="font-semibold text-brand-gold-800">
+                    {selectedStudentProfile.userId?.targetExam || 'General Self-Study'}
+                  </span>
+                </div>
+
+                <div className="p-2.5 rounded-lg bg-brand-surface-muted/40 border border-brand-surface-border">
+                  <span className="text-[10px] uppercase font-bold text-brand-navy-500 block">Father's Name</span>
+                  <span className="font-bold text-brand-navy-950 text-sm">
+                    {selectedStudentProfile.userId?.fatherName || 'Not recorded'}
+                  </span>
+                </div>
+
+                <div className="p-2.5 rounded-lg bg-brand-surface-muted/40 border border-brand-surface-border">
+                  <span className="text-[10px] uppercase font-bold text-brand-navy-500 block">Father / Emergency Contact</span>
+                  {selectedStudentProfile.userId?.emergencyContact ? (
+                    <a
+                      href={`tel:${selectedStudentProfile.userId.emergencyContact}`}
+                      className="font-bold text-brand-gold-700 hover:underline flex items-center gap-1 text-sm font-mono mt-0.5"
+                    >
+                      <Phone className="w-3.5 h-3.5" />
+                      <span>{selectedStudentProfile.userId.emergencyContact}</span>
+                    </a>
+                  ) : (
+                    <span className="text-brand-navy-400 italic">Not recorded</span>
+                  )}
+                </div>
+
+                <div className="sm:col-span-2">
+                  <span className="text-[10px] uppercase font-bold text-brand-navy-400 block">Residential Address</span>
+                  <span className="font-medium text-brand-navy-800">
+                    {selectedStudentProfile.userId?.address || 'Not recorded'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Submitted Documents & Identity Proofs (ImageKit) */}
+            <div className="mb-4">
+              <h4 className="text-xs font-bold text-brand-navy-900 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
+                <FileText className="w-4 h-4 text-brand-gold-600" />
+                Identity Proof Documents (ImageKit Verified)
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {/* Student Photo */}
+                <div className="p-3 rounded-xl border border-brand-surface-border bg-white text-center hover:border-brand-gold-400 transition-colors">
+                  <span className="block text-[11px] font-bold text-brand-navy-800 mb-2">Student Photo</span>
+                  {selectedStudentProfile.userId?.picture ? (
+                    <div
+                      onClick={() =>
+                        setLightboxImage({
+                          url: selectedStudentProfile.userId.picture,
+                          title: `${selectedStudentProfile.userId?.name} - Photo`,
+                        })
+                      }
+                      className="group relative cursor-pointer overflow-hidden rounded-lg bg-brand-surface-muted border border-brand-surface-border aspect-square flex items-center justify-center"
+                    >
+                      <img
+                        src={selectedStudentProfile.userId.picture}
+                        alt="Student Photo"
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                        loading="lazy"
+                      />
+                      <div className="absolute inset-0 bg-brand-navy-950/40 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white text-xs font-bold transition-opacity">
+                        <span className="px-2 py-0.5 rounded-lg bg-black/60 backdrop-blur-sm flex items-center gap-1 text-[11px]">
+                          Zoom
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="py-6 text-xs text-brand-navy-400 italic">No photo uploaded</div>
+                  )}
+                </div>
+
+                {/* Aadhar Front Side */}
+                <div className="p-3 rounded-xl border border-brand-surface-border bg-white text-center hover:border-brand-gold-400 transition-colors">
+                  <span className="block text-[11px] font-bold text-brand-navy-800 mb-2">Aadhar Front Side</span>
+                  {selectedStudentProfile.userId?.aadharFrontUrl ? (
+                    <div
+                      onClick={() =>
+                        setLightboxImage({
+                          url: selectedStudentProfile.userId.aadharFrontUrl,
+                          title: `${selectedStudentProfile.userId?.name} - Aadhar Front`,
+                        })
+                      }
+                      className="group relative cursor-pointer overflow-hidden rounded-lg bg-brand-surface-muted border border-brand-surface-border aspect-video flex items-center justify-center"
+                    >
+                      <img
+                        src={selectedStudentProfile.userId.aadharFrontUrl}
+                        alt="Aadhar Front"
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                        loading="lazy"
+                      />
+                      <div className="absolute inset-0 bg-brand-navy-950/40 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white text-xs font-bold transition-opacity">
+                        <span className="px-2.5 py-1 rounded-lg bg-black/60 backdrop-blur-sm flex items-center gap-1">
+                          Zoom Image
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="py-6 text-xs text-brand-navy-400 italic">No front photo uploaded</div>
+                  )}
+                </div>
+
+                {/* Aadhar Back Side */}
+                <div className="p-3 rounded-xl border border-brand-surface-border bg-white text-center hover:border-brand-gold-400 transition-colors">
+                  <span className="block text-[11px] font-bold text-brand-navy-800 mb-2">Aadhar Back Side</span>
+                  {selectedStudentProfile.userId?.aadharBackUrl ? (
+                    <div
+                      onClick={() =>
+                        setLightboxImage({
+                          url: selectedStudentProfile.userId.aadharBackUrl,
+                          title: `${selectedStudentProfile.userId?.name} - Aadhar Back`,
+                        })
+                      }
+                      className="group relative cursor-pointer overflow-hidden rounded-lg bg-brand-surface-muted border border-brand-surface-border aspect-video flex items-center justify-center"
+                    >
+                      <img
+                        src={selectedStudentProfile.userId.aadharBackUrl}
+                        alt="Aadhar Back"
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                        loading="lazy"
+                      />
+                      <div className="absolute inset-0 bg-brand-navy-950/40 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white text-xs font-bold transition-opacity">
+                        <span className="px-2.5 py-1 rounded-lg bg-black/60 backdrop-blur-sm flex items-center gap-1">
+                          Zoom Image
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="py-6 text-xs text-brand-navy-400 italic">No back photo uploaded</div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex items-center justify-between pt-3 border-t border-brand-surface-border">
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="px-3.5 py-2 rounded-xl text-xs font-bold text-brand-navy-800 hover:bg-brand-surface-muted border border-brand-surface-border flex items-center gap-1.5 transition-colors"
+              >
+                <Printer className="w-3.5 h-3.5" />
+                <span>Print Profile</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowStudentProfileModal(false);
+                  setSelectedStudentProfile(null);
+                }}
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-brand-navy-950 hover:bg-brand-navy-900 text-white transition-colors shadow-soft-sm"
+              >
+                Close Profile
+              </button>
+            </div>
           </div>
         </div>
       )}

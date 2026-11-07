@@ -40,7 +40,10 @@ export async function listMemberships(req, res, next) {
 
     const [memberships, total] = await Promise.all([
       Membership.find(query)
-        .populate('userId', 'name email phone picture isMember')
+        .populate(
+          'userId',
+          'name email phone picture isMember fatherName emergencyContact address targetExam aadharFrontUrl aadharBackUrl'
+        )
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limitNum)
@@ -166,6 +169,8 @@ export async function createMembership(req, res, next) {
       targetExam = '',
       aadharFront = '',
       aadharBack = '',
+      photo = '',
+      studentPhoto = '',
     } = req.body;
 
     if (!monthlyFeeInPaise || monthlyFeeInPaise <= 0) {
@@ -203,10 +208,19 @@ export async function createMembership(req, res, next) {
       return errorResponse(res, 'User ID or valid email is required to assign membership', 400);
     }
 
-    // Process Aadhar uploads to ImageKit if provided
+    // Process Aadhar and Student Photo uploads to ImageKit if provided
     try {
       const safePrefix = targetUser.email.split('@')[0].replace(/[^a-zA-Z0-9]/g, '_');
       const ts = Date.now();
+      const rawPhoto = photo || studentPhoto;
+      if (rawPhoto) {
+        const photoRes = await uploadToImageKit(
+          rawPhoto,
+          `desk_photo_${safePrefix}_${ts}.jpg`,
+          '/libraryhub/photos'
+        );
+        targetUser.picture = photoRes.url;
+      }
       if (aadharFront && !targetUser.aadharFrontUrl) {
         const frontRes = await uploadToImageKit(
           aadharFront,
@@ -224,7 +238,7 @@ export async function createMembership(req, res, next) {
         targetUser.aadharBackUrl = backRes.url;
       }
     } catch (uploadErr) {
-      logger.warn(`Could not upload desk Aadhar to ImageKit: ${uploadErr.message}`);
+      logger.warn(`Could not upload desk documents to ImageKit: ${uploadErr.message}`);
     }
 
     if (fatherName) targetUser.fatherName = fatherName;

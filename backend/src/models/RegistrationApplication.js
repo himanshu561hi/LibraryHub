@@ -61,6 +61,14 @@ const registrationApplicationSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    photoUrl: {
+      type: String,
+      default: null,
+    },
+    photoFileId: {
+      type: String,
+      default: null,
+    },
     status: {
       type: String,
       enum: ['PENDING', 'APPROVED', 'REJECTED'],
@@ -88,6 +96,10 @@ const registrationApplicationSchema = new mongoose.Schema(
     membershipId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Membership',
+      default: null,
+    },
+    joiningDate: {
+      type: Date,
       default: null,
     },
   },

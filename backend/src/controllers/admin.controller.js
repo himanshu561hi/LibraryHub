@@ -385,6 +385,7 @@ export async function approveRegistrationApplication(req, res, next) {
   try {
     const { id } = req.params;
     const {
+      joiningDate,
       slotType = 'day_shift',
       shiftTimings = 'Day Shift (7 AM – 8 PM)',
       planName = 'Day Shift Plan (7 AM – 8 PM)',
@@ -414,6 +415,7 @@ export async function approveRegistrationApplication(req, res, next) {
       studentUser = new User({
         email: application.email,
         name: application.name,
+        picture: application.photoUrl || null,
         phone: application.phone,
         fatherName: application.fatherName,
         emergencyContact: application.emergencyContact,
@@ -428,6 +430,7 @@ export async function approveRegistrationApplication(req, res, next) {
       });
     } else {
       studentUser.name = application.name;
+      if (application.photoUrl) studentUser.picture = application.photoUrl;
       studentUser.phone = application.phone;
       studentUser.fatherName = application.fatherName;
       studentUser.emergencyContact = application.emergencyContact;
@@ -456,8 +459,19 @@ export async function approveRegistrationApplication(req, res, next) {
     }
 
     // 3. Create active Membership
-    const parsedJoiningDate = new Date();
-    const anchorDay = parsedJoiningDate.getDate();
+    let parsedJoiningDate = new Date();
+    if (joiningDate) {
+      if (typeof joiningDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(joiningDate)) {
+        const [y, m, d] = joiningDate.split('-').map(Number);
+        parsedJoiningDate = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
+      } else {
+        const d = new Date(joiningDate);
+        if (!isNaN(d.getTime())) {
+          parsedJoiningDate = d;
+        }
+      }
+    }
+    const anchorDay = parsedJoiningDate.getUTCDate ? parsedJoiningDate.getUTCDate() : parsedJoiningDate.getDate();
     const nextBillDate = calculateNextBillingDate(parsedJoiningDate, anchorDay);
     const monthlyFeeInPaise = Math.round(Number(monthlyFee) * 100);
 
@@ -539,6 +553,7 @@ export async function approveRegistrationApplication(req, res, next) {
 
     // 6. Update Application Status to APPROVED
     application.status = 'APPROVED';
+    application.joiningDate = parsedJoiningDate;
     application.reviewedByAdminId = req.user?._id;
     application.reviewedAt = new Date();
     application.createdUserId = studentUser._id;

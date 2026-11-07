@@ -58,8 +58,10 @@ export default function RegisterPage() {
 
   const [aadharFront, setAadharFront] = useState(null); // base64 data url
   const [aadharBack, setAadharBack] = useState(null); // base64 data url
+  const [studentPhoto, setStudentPhoto] = useState(null); // base64 data url
   const [aadharFrontName, setAadharFrontName] = useState('');
   const [aadharBackName, setAadharBackName] = useState('');
+  const [studentPhotoName, setStudentPhotoName] = useState('');
 
   const [declarationAgreed, setDeclarationAgreed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -78,6 +80,8 @@ export default function RegisterPage() {
   const frontCameraInputRef = useRef(null);
   const backFileInputRef = useRef(null);
   const backCameraInputRef = useRef(null);
+  const photoFileInputRef = useRef(null);
+  const photoCameraInputRef = useRef(null);
 
   // Client-side image compression helper
   const processImageFile = (file, setImgUrl, setFileName) => {
@@ -139,6 +143,7 @@ export default function RegisterPage() {
     if (!formData.fatherName.trim()) return setErrorMessage("Father's Name is required");
     if (!formData.emergencyContact.trim()) return setErrorMessage('Emergency Contact Number is required');
     if (!formData.address.trim()) return setErrorMessage('Residential Address is required');
+    if (!studentPhoto) return setErrorMessage('Please take a selfie or upload your passport size photo');
     if (!aadharFront) return setErrorMessage('Please upload the Front side photo of your Aadhar Card');
     if (!aadharBack) return setErrorMessage('Please upload the Back side photo of your Aadhar Card');
     if (!declarationAgreed) return setErrorMessage('Please agree to the confirmation declaration');
@@ -158,6 +163,7 @@ export default function RegisterPage() {
         emergencyContact: formData.emergencyContact.trim(),
         targetExam: finalExam,
         address: formData.address.trim(),
+        photo: studentPhoto,
         aadharFront,
         aadharBack,
       });
@@ -277,6 +283,14 @@ export default function RegisterPage() {
             <p className="mt-2 text-xs sm:text-sm text-brand-navy-600 max-w-lg mx-auto">
               Thank you, <strong>{submittedApplication.name}</strong>. Your documents have been securely uploaded to ImageKit and forwarded to the Library Hub front desk for verification.
             </p>
+
+            {submittedApplication.photoUrl && (
+              <div className="mt-4 mb-2 flex justify-center">
+                <div className="w-20 h-20 rounded-full overflow-hidden border-2 border-brand-gold-500 shadow-md">
+                  <img src={submittedApplication.photoUrl} alt="Applicant" className="w-full h-full object-cover" />
+                </div>
+              </div>
+            )}
 
             {/* Application Reference Number Card */}
             <div className="mt-6 max-w-sm mx-auto p-4 rounded-2xl bg-brand-surface border border-brand-surface-border">
@@ -638,85 +652,181 @@ export default function RegisterPage() {
                 </div>
               </div>
 
-              {/* SECTION 2: AADHAR CARD PHOTO VERIFICATION (IMAGEKIT) */}
+              {/* SECTION 2: STUDENT PHOTO & AADHAR CARD VERIFICATION (IMAGEKIT) */}
               <div>
                 <div className="flex items-center gap-2 pb-3 border-b border-brand-surface-border mb-3">
                   <div className="w-7 h-7 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 flex items-center justify-center">
                     <Shield className="w-4 h-4" />
                   </div>
                   <h2 className="text-base font-bold text-brand-navy-950">
-                    Step 2: Aadhar Card Photo Upload (Front & Back)
+                    Step 2: Student Photo & Aadhar Card Verification
                   </h2>
                 </div>
 
                 <p className="text-xs text-brand-navy-600 mb-5">
-                  Upload clear photos of your Aadhar Card or take a picture using your mobile camera. Images are optimized and stored securely on ImageKit CDN for admin desk verification.
+                  Click a live selfie/photo using your camera or upload a clear passport photo, along with front and back photos of your Aadhar Card. Uploaded securely to ImageKit CDN for official verification.
                 </p>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                   
-                  {/* AADHAR FRONT */}
-                  <div className="p-4 rounded-2xl border-2 border-dashed border-brand-surface-border hover:border-brand-gold-500 transition-colors bg-brand-surface-muted/30">
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="text-xs font-bold text-brand-navy-950 uppercase tracking-wider">
-                        Aadhar Card — Front Side *
-                      </span>
-                      {aadharFront && (
-                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                          <Check className="w-3 h-3" /> Ready
+                  {/* STUDENT PASSPORT PHOTO / LIVE SELFIE */}
+                  <div className="p-4 rounded-2xl border-2 border-dashed border-brand-surface-border hover:border-brand-gold-500 transition-colors bg-brand-surface-muted/30 flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-xs font-bold text-brand-navy-950 uppercase tracking-wider flex items-center gap-1.5">
+                          <User className="w-3.5 h-3.5 text-brand-gold-600" />
+                          <span>Student Photo *</span>
                         </span>
+                        {studentPhoto && (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                            <Check className="w-3 h-3" /> Ready
+                          </span>
+                        )}
+                      </div>
+
+                      {studentPhoto ? (
+                        <div className="relative rounded-xl overflow-hidden border border-brand-surface-border bg-black/5 mx-auto max-w-[200px] aspect-square flex items-center justify-center">
+                          <img
+                            src={studentPhoto}
+                            alt="Student Preview"
+                            className="w-full h-full object-cover rounded-xl"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setStudentPhoto(null);
+                              setStudentPhotoName('');
+                            }}
+                            className="absolute top-2 right-2 p-1.5 rounded-lg bg-white/90 hover:bg-rose-600 hover:text-white text-brand-navy-800 transition-all shadow-md"
+                            title="Remove photo"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="h-44 flex flex-col items-center justify-center text-center p-2">
+                          <div className="w-16 h-16 rounded-full bg-brand-surface-muted border-2 border-dashed border-brand-navy-300 flex items-center justify-center mb-2 text-brand-navy-500">
+                            <User className="w-8 h-8" />
+                          </div>
+                          <span className="text-xs font-semibold text-brand-navy-800">
+                            Take a Live Photo or Upload Picture
+                          </span>
+                          <span className="text-[10px] text-brand-navy-500 mt-0.5">
+                            Front-facing clear selfie or passport photo
+                          </span>
+                          
+                          <div className="mt-3 flex items-center gap-2">
+                            {/* Camera capture (Selfie / Front camera) */}
+                            <button
+                              type="button"
+                              onClick={() => photoCameraInputRef.current?.click()}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-navy-950 hover:bg-brand-navy-900 text-white text-[11px] font-bold transition-all shadow-soft-sm"
+                            >
+                              <Camera className="w-3.5 h-3.5 text-brand-gold-400" />
+                              <span>Click Photo</span>
+                            </button>
+
+                            {/* File picker */}
+                            <button
+                              type="button"
+                              onClick={() => photoFileInputRef.current?.click()}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white hover:bg-brand-surface-muted text-brand-navy-800 text-[11px] font-bold border border-brand-surface-border transition-all"
+                            >
+                              <Upload className="w-3.5 h-3.5" />
+                              <span>Files</span>
+                            </button>
+                          </div>
+                        </div>
                       )}
                     </div>
 
-                    {aadharFront ? (
-                      <div className="relative rounded-xl overflow-hidden border border-brand-surface-border bg-black/5">
-                        <img
-                          src={aadharFront}
-                          alt="Aadhar Front Preview"
-                          className="w-full h-44 object-contain rounded-xl"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setAadharFront(null);
-                            setAadharFrontName('');
-                          }}
-                          className="absolute top-2 right-2 p-1.5 rounded-lg bg-white/90 hover:bg-rose-600 hover:text-white text-brand-navy-800 transition-all shadow-md"
-                          title="Remove image"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="h-44 flex flex-col items-center justify-center text-center p-3">
-                        <Shield className="w-8 h-8 text-brand-navy-400 mb-2" />
-                        <span className="text-xs font-semibold text-brand-navy-800">
-                          Front photo showing photo & Aadhar number
+                    {/* Hidden inputs for Student Photo */}
+                    <input
+                      type="file"
+                      ref={photoFileInputRef}
+                      accept="image/jpeg,image/png,image/jpg,image/webp"
+                      className="hidden"
+                      onChange={(e) =>
+                        processImageFile(e.target.files?.[0], setStudentPhoto, setStudentPhotoName)
+                      }
+                    />
+                    <input
+                      type="file"
+                      ref={photoCameraInputRef}
+                      accept="image/*"
+                      capture="user"
+                      className="hidden"
+                      onChange={(e) =>
+                        processImageFile(e.target.files?.[0], setStudentPhoto, setStudentPhotoName)
+                      }
+                    />
+                  </div>
+                  
+                  {/* AADHAR FRONT */}
+                  <div className="p-4 rounded-2xl border-2 border-dashed border-brand-surface-border hover:border-brand-gold-500 transition-colors bg-brand-surface-muted/30 flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-xs font-bold text-brand-navy-950 uppercase tracking-wider flex items-center gap-1.5">
+                          <Shield className="w-3.5 h-3.5 text-brand-gold-600" />
+                          <span>Aadhar — Front *</span>
                         </span>
-                        
-                        <div className="mt-3 flex items-center gap-2">
-                          {/* File picker */}
-                          <button
-                            type="button"
-                            onClick={() => frontFileInputRef.current?.click()}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-navy-950 hover:bg-brand-navy-900 text-white text-[11px] font-bold transition-all shadow-soft-sm"
-                          >
-                            <Upload className="w-3.5 h-3.5" />
-                            <span>Upload File</span>
-                          </button>
+                        {aadharFront && (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                            <Check className="w-3 h-3" /> Ready
+                          </span>
+                        )}
+                      </div>
 
-                          {/* Camera capture */}
+                      {aadharFront ? (
+                        <div className="relative rounded-xl overflow-hidden border border-brand-surface-border bg-black/5">
+                          <img
+                            src={aadharFront}
+                            alt="Aadhar Front Preview"
+                            className="w-full h-44 object-contain rounded-xl"
+                          />
                           <button
                             type="button"
-                            onClick={() => frontCameraInputRef.current?.click()}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white hover:bg-brand-surface-muted text-brand-navy-800 text-[11px] font-bold border border-brand-surface-border transition-all"
+                            onClick={() => {
+                              setAadharFront(null);
+                              setAadharFrontName('');
+                            }}
+                            className="absolute top-2 right-2 p-1.5 rounded-lg bg-white/90 hover:bg-rose-600 hover:text-white text-brand-navy-800 transition-all shadow-md"
+                            title="Remove image"
                           >
-                            <Camera className="w-3.5 h-3.5 text-brand-gold-600" />
-                            <span>Camera</span>
+                            <X className="w-4 h-4" />
                           </button>
                         </div>
-                      </div>
-                    )}
+                      ) : (
+                        <div className="h-44 flex flex-col items-center justify-center text-center p-2">
+                          <Shield className="w-8 h-8 text-brand-navy-400 mb-2" />
+                          <span className="text-xs font-semibold text-brand-navy-800">
+                            Front photo with Aadhar number
+                          </span>
+                          
+                          <div className="mt-3 flex items-center gap-2">
+                            {/* Camera capture */}
+                            <button
+                              type="button"
+                              onClick={() => frontCameraInputRef.current?.click()}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-navy-950 hover:bg-brand-navy-900 text-white text-[11px] font-bold transition-all shadow-soft-sm"
+                            >
+                              <Camera className="w-3.5 h-3.5 text-brand-gold-400" />
+                              <span>Camera</span>
+                            </button>
+
+                            {/* File picker */}
+                            <button
+                              type="button"
+                              onClick={() => frontFileInputRef.current?.click()}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white hover:bg-brand-surface-muted text-brand-navy-800 text-[11px] font-bold border border-brand-surface-border transition-all"
+                            >
+                              <Upload className="w-3.5 h-3.5" />
+                              <span>Files</span>
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
 
                     {/* Hidden inputs for Front */}
                     <input
@@ -741,67 +851,70 @@ export default function RegisterPage() {
                   </div>
 
                   {/* AADHAR BACK */}
-                  <div className="p-4 rounded-2xl border-2 border-dashed border-brand-surface-border hover:border-brand-gold-500 transition-colors bg-brand-surface-muted/30">
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="text-xs font-bold text-brand-navy-950 uppercase tracking-wider">
-                        Aadhar Card — Back Side *
-                      </span>
-                      {aadharBack && (
-                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                          <Check className="w-3 h-3" /> Ready
+                  <div className="p-4 rounded-2xl border-2 border-dashed border-brand-surface-border hover:border-brand-gold-500 transition-colors bg-brand-surface-muted/30 flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-xs font-bold text-brand-navy-950 uppercase tracking-wider flex items-center gap-1.5">
+                          <Shield className="w-3.5 h-3.5 text-brand-gold-600" />
+                          <span>Aadhar — Back *</span>
                         </span>
-                      )}
-                    </div>
-
-                    {aadharBack ? (
-                      <div className="relative rounded-xl overflow-hidden border border-brand-surface-border bg-black/5">
-                        <img
-                          src={aadharBack}
-                          alt="Aadhar Back Preview"
-                          className="w-full h-44 object-contain rounded-xl"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setAadharBack(null);
-                            setAadharBackName('');
-                          }}
-                          className="absolute top-2 right-2 p-1.5 rounded-lg bg-white/90 hover:bg-rose-600 hover:text-white text-brand-navy-800 transition-all shadow-md"
-                          title="Remove image"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
+                        {aadharBack && (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                            <Check className="w-3 h-3" /> Ready
+                          </span>
+                        )}
                       </div>
-                    ) : (
-                      <div className="h-44 flex flex-col items-center justify-center text-center p-3">
-                        <Shield className="w-8 h-8 text-brand-navy-400 mb-2" />
-                        <span className="text-xs font-semibold text-brand-navy-800">
-                          Back photo showing address details
-                        </span>
-                        
-                        <div className="mt-3 flex items-center gap-2">
-                          {/* File picker */}
-                          <button
-                            type="button"
-                            onClick={() => backFileInputRef.current?.click()}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-navy-950 hover:bg-brand-navy-900 text-white text-[11px] font-bold transition-all shadow-soft-sm"
-                          >
-                            <Upload className="w-3.5 h-3.5" />
-                            <span>Upload File</span>
-                          </button>
 
-                          {/* Camera capture */}
+                      {aadharBack ? (
+                        <div className="relative rounded-xl overflow-hidden border border-brand-surface-border bg-black/5">
+                          <img
+                            src={aadharBack}
+                            alt="Aadhar Back Preview"
+                            className="w-full h-44 object-contain rounded-xl"
+                          />
                           <button
                             type="button"
-                            onClick={() => backCameraInputRef.current?.click()}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white hover:bg-brand-surface-muted text-brand-navy-800 text-[11px] font-bold border border-brand-surface-border transition-all"
+                            onClick={() => {
+                              setAadharBack(null);
+                              setAadharBackName('');
+                            }}
+                            className="absolute top-2 right-2 p-1.5 rounded-lg bg-white/90 hover:bg-rose-600 hover:text-white text-brand-navy-800 transition-all shadow-md"
+                            title="Remove image"
                           >
-                            <Camera className="w-3.5 h-3.5 text-brand-gold-600" />
-                            <span>Camera</span>
+                            <X className="w-4 h-4" />
                           </button>
                         </div>
-                      </div>
-                    )}
+                      ) : (
+                        <div className="h-44 flex flex-col items-center justify-center text-center p-2">
+                          <Shield className="w-8 h-8 text-brand-navy-400 mb-2" />
+                          <span className="text-xs font-semibold text-brand-navy-800">
+                            Back photo with address details
+                          </span>
+                          
+                          <div className="mt-3 flex items-center gap-2">
+                            {/* Camera capture */}
+                            <button
+                              type="button"
+                              onClick={() => backCameraInputRef.current?.click()}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-navy-950 hover:bg-brand-navy-900 text-white text-[11px] font-bold transition-all shadow-soft-sm"
+                            >
+                              <Camera className="w-3.5 h-3.5 text-brand-gold-400" />
+                              <span>Camera</span>
+                            </button>
+
+                            {/* File picker */}
+                            <button
+                              type="button"
+                              onClick={() => backFileInputRef.current?.click()}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white hover:bg-brand-surface-muted text-brand-navy-800 text-[11px] font-bold border border-brand-surface-border transition-all"
+                            >
+                              <Upload className="w-3.5 h-3.5" />
+                              <span>Files</span>
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
 
                     {/* Hidden inputs for Back */}
                     <input

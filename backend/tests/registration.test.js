@@ -47,6 +47,7 @@ describe('Online Self-Registration & Admin Approval Workflow', () => {
           emergencyContact: '9123456780',
           targetExam: 'BPSC',
           address: 'Main Road Nawalpur',
+          photo: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
           aadharFront: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
           aadharBack: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
         });
@@ -123,6 +124,7 @@ describe('Online Self-Registration & Admin Approval Workflow', () => {
         .post(`/api/v1/admin/applications/${pendingApp._id}/approve`)
         .set('Authorization', `Bearer ${adminToken}`)
         .send({
+          joiningDate: '2026-11-01',
           slotType: 'day_shift',
           planName: 'Day Shift Plan (7 AM – 8 PM)',
           shiftTimings: '7:00 AM – 8:00 PM',

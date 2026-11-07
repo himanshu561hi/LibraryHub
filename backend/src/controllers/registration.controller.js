@@ -21,6 +21,8 @@ export async function submitRegistration(req, res, next) {
       address,
       aadharFront,
       aadharBack,
+      photo,
+      studentPhoto,
     } = req.body;
 
     const studentName = (name || fullName || '').trim();
@@ -76,13 +78,13 @@ export async function submitRegistration(req, res, next) {
     const rand = Math.floor(1000 + Math.random() * 9000);
     const applicationNumber = `APP-${yyyy}${mm}${dd}-${rand}`;
 
-    logger.info(`Processing Aadhar uploads to ImageKit for registration: ${cleanEmail}`);
+    logger.info(`Processing document uploads to ImageKit for registration: ${cleanEmail}`);
 
-    // Upload Aadhar front & back photos to ImageKit
+    // Upload Aadhar front & back photos and student selfie/passport photo to ImageKit
     const safeEmailPrefix = cleanEmail.split('@')[0].replace(/[^a-zA-Z0-9]/g, '_');
     const timestamp = Date.now();
 
-    const [frontUpload, backUpload] = await Promise.all([
+    const uploadPromises = [
       uploadToImageKit(
         aadharFront,
         `aadhar_front_${safeEmailPrefix}_${timestamp}.jpg`,
@@ -93,7 +95,23 @@ export async function submitRegistration(req, res, next) {
         `aadhar_back_${safeEmailPrefix}_${timestamp}.jpg`,
         '/libraryhub/aadhar'
       ),
-    ]);
+    ];
+
+    const rawPhoto = photo || studentPhoto;
+    if (rawPhoto) {
+      uploadPromises.push(
+        uploadToImageKit(
+          rawPhoto,
+          `student_photo_${safeEmailPrefix}_${timestamp}.jpg`,
+          '/libraryhub/photos'
+        )
+      );
+    }
+
+    const uploadResults = await Promise.all(uploadPromises);
+    const frontUpload = uploadResults[0];
+    const backUpload = uploadResults[1];
+    const photoUpload = rawPhoto ? uploadResults[2] : null;
 
     // Create the pending Registration Application
     const application = await RegistrationApplication.create({
@@ -105,6 +123,8 @@ export async function submitRegistration(req, res, next) {
       emergencyContact: emergencyContact.trim(),
       targetExam: targetExam.trim(),
       address: address.trim(),
+      photoUrl: photoUpload ? photoUpload.url : null,
+      photoFileId: photoUpload ? photoUpload.fileId : null,
       aadharFrontUrl: frontUpload.url,
       aadharFrontFileId: frontUpload.fileId,
       aadharBackUrl: backUpload.url,
