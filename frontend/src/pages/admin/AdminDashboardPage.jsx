@@ -4195,16 +4195,16 @@ export default function AdminDashboardPage() {
                   <button
                     type="button"
                     onClick={() => setLightboxImage({ url: selectedApp.photoUrl, title: `${selectedApp.fullName} - Student Photo` })}
-                    className="w-13 h-13 rounded-xl overflow-hidden border border-brand-surface-border shrink-0 hover:ring-2 hover:ring-brand-gold-500 transition-all shadow-soft-sm group relative"
+                    className="w-14 h-14 min-w-[56px] min-h-[56px] max-w-[56px] max-h-[56px] rounded-xl overflow-hidden border border-brand-surface-border shrink-0 hover:ring-2 hover:ring-brand-gold-500 transition-all shadow-soft-sm group relative bg-brand-surface-muted"
                     title="Click to zoom photo"
                   >
-                    <img src={selectedApp.photoUrl} alt="Photo" className="w-full h-full object-cover" />
+                    <img src={selectedApp.photoUrl} alt="Photo" className="w-14 h-14 object-cover" />
                     <div className="absolute inset-0 bg-brand-navy-950/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
                       <ZoomIn className="w-4 h-4 text-white" />
                     </div>
                   </button>
                 ) : (
-                  <div className="w-13 h-13 rounded-xl bg-brand-surface-muted border border-brand-surface-border flex items-center justify-center text-brand-navy-400 font-bold shrink-0 text-xl shadow-soft-sm">
+                  <div className="w-14 h-14 min-w-[56px] min-h-[56px] rounded-xl bg-brand-surface-muted border border-brand-surface-border flex items-center justify-center text-brand-navy-400 font-bold shrink-0 text-xl shadow-soft-sm">
                     {(selectedApp.fullName || 'S').charAt(0).toUpperCase()}
                   </div>
                 )}
@@ -4691,20 +4691,20 @@ export default function AdminDashboardPage() {
                         title: `${selectedStudentProfile.userId?.name} - Photo`,
                       })
                     }
-                    className="w-14 h-14 rounded-xl overflow-hidden border border-brand-surface-border shrink-0 hover:ring-2 hover:ring-brand-gold-500 transition-all shadow-soft-sm group relative"
+                    className="w-14 h-14 min-w-[56px] min-h-[56px] max-w-[56px] max-h-[56px] rounded-xl overflow-hidden border border-brand-surface-border shrink-0 hover:ring-2 hover:ring-brand-gold-500 transition-all shadow-soft-sm group relative bg-brand-surface-muted"
                     title="Click to zoom photo"
                   >
                     <img
                       src={selectedStudentProfile.userId.picture}
                       alt="Student"
-                      className="w-full h-full object-cover"
+                      className="w-14 h-14 object-cover"
                     />
                     <div className="absolute inset-0 bg-brand-navy-950/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
                       <ZoomIn className="w-4 h-4 text-white" />
                     </div>
                   </button>
                 ) : (
-                  <div className="w-14 h-14 rounded-xl bg-brand-surface-muted border border-brand-surface-border flex items-center justify-center text-brand-navy-400 font-bold shrink-0 text-xl shadow-soft-sm">
+                  <div className="w-14 h-14 min-w-[56px] min-h-[56px] rounded-xl bg-brand-surface-muted border border-brand-surface-border flex items-center justify-center text-brand-navy-400 font-bold shrink-0 text-xl shadow-soft-sm">
                     {(selectedStudentProfile.userId?.name || 'S').charAt(0).toUpperCase()}
                   </div>
                 )}
