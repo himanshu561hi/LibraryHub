@@ -21,6 +21,7 @@ import {
   Sparkles,
   X,
   BookOpen,
+  Lock,
 } from 'lucide-react';
 import client from '../../services/api/client';
 import { API_ENDPOINTS } from '../../services/api/endpoints';
