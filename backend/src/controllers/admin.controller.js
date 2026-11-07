@@ -580,44 +580,135 @@ export async function approveRegistrationApplication(req, res, next) {
       reason: `Approved registration ${application.applicationNumber} and activated student portal`,
     });
 
-    // 8. Send Approval Email to student
+    // 8. Send Enriched Approval Email to student with Complete Access & Attendance Guide
     try {
       const loginUrl = 'https://libraryhubnawalpur.netlify.app/login';
+      const formattedJoiningDate = parsedJoiningDate.toLocaleDateString('en-IN', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+      });
+
       await sendTransactionalEmail({
         to: studentUser.email,
-        subject: `🎉 Congratulations! Your Library Hub Membership is Approved & Active`,
-        text: `Hello ${studentUser.name},\n\nYour member registration application (${application.applicationNumber}) has been approved by the administration! Your student dashboard is now live.\n\nMembership Shift: ${planName}\nMonthly Fee: ₹${monthlyFee}\nInitial Payment Paid: ₹${initialPayment}\n\nYou can now sign in using your Google account at:\n${loginUrl}\n\nWelcome to Library Hub Nawalpur!`,
+        subject: `🎉 Congratulations! Your Library Hub Membership is Approved & Enrolled`,
+        text: `Hello ${studentUser.name},\n\nCongratulations! Your admission application (${application.applicationNumber}) has been verified and approved by the administration. You are now officially enrolled at Library Hub Nawalpur!\n\nMEMBERSHIP DETAILS:\n- Shift & Plan: ${planName}\n- Joining Date: ${formattedJoiningDate}\n- Monthly Fee: ₹${monthlyFee}\n- Initial Payment: ₹${initialPayment}\n- Registered Email: ${studentUser.email}\n\nHOW TO ACCESS YOUR DASHBOARD:\n1. Open ${loginUrl}\n2. Click "Sign in with Google" using your registered email: ${studentUser.email}\n3. Your student portal will open with your shift details and fee receipts.\n\nHOW TO MARK DAILY ATTENDANCE (CHECK-IN & CHECK-OUT):\n1. Daily Desk Code: Every morning at the library front desk, a daily attendance code is provided.\n2. Check-In: When you arrive at the library, open your dashboard and enter the Daily Code to mark your Check-In time.\n3. Check-Out: When leaving the library after your study session, remember to click Check-Out on your dashboard to accurately record your study hours.\n\nLIBRARY RULES & ETIQUETTE:\n- Maintain complete pin-drop silence in the study hall.\n- Always use headphones/earphones for video lectures.\n- Keep your study desk clean and orderly.\n\nWelcome to Library Hub Nawalpur!\nLocation: Opposite Kali Mandir, Main Road Nawalpur, Salempur, Deoria (UP)\nEmail: libraryhubnawalpur@gmail.com`,
         html: `
-          <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
-            <div style="text-align: center; margin-bottom: 24px;">
-              <h2 style="color: #0f172a; margin: 0;">Library Hub Nawalpur</h2>
-              <p style="color: #64748b; font-size: 14px; margin-top: 4px;">Self-Study & Reading Library</p>
+          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 620px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff; color: #0f172a;">
+            
+            {/* Header */}
+            <div style="text-align: center; margin-bottom: 24px; padding-bottom: 20px; border-bottom: 1px solid #f1f5f9;">
+              <h1 style="color: #0f172a; margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.5px;">LIBRARY HUB</h1>
+              <p style="color: #d97706; font-size: 13px; font-weight: bold; margin-top: 4px; text-transform: uppercase; letter-spacing: 1px;">NAWALPUR · SELF-STUDY & READING LIBRARY</p>
             </div>
-            <div style="background-color: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px; padding: 18px; margin-bottom: 20px;">
-              <span style="display: inline-block; font-size: 12px; font-weight: bold; background-color: #10b981; color: #ffffff; padding: 4px 10px; border-radius: 9999px; margin-bottom: 8px;">APPROVED & ACTIVE</span>
-              <h3 style="margin: 0; color: #065f46; font-size: 18px;">Your Student Dashboard is Live!</h3>
-              <p style="font-size: 13px; color: #047857; margin: 6px 0 0 0;">Application Ref: <strong>${application.applicationNumber}</strong></p>
+
+            {/* Approved Banner */}
+            <div style="background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%); border: 1px solid #a7f3d0; border-radius: 12px; padding: 20px; margin-bottom: 24px; text-align: center;">
+              <span style="display: inline-block; font-size: 11px; font-weight: 800; background-color: #059669; color: #ffffff; padding: 4px 12px; border-radius: 9999px; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px;">
+                ✓ ADMISSION APPROVED & ENROLLED
+              </span>
+              <h2 style="margin: 4px 0 0 0; color: #065f46; font-size: 20px; font-weight: 800;">
+                Congratulations, ${studentUser.name}!
+              </h2>
+              <p style="font-size: 13px; color: #047857; margin: 6px 0 0 0;">
+                Application Ref: <strong>${application.applicationNumber}</strong>
+              </p>
             </div>
-            <p style="font-size: 14px; color: #334155; line-height: 1.6;">Hello <strong>${studentUser.name}</strong>,</p>
-            <p style="font-size: 14px; color: #334155; line-height: 1.6;">
-              Congratulations! Your admission to <strong>Library Hub Nawalpur</strong> has been verified and approved by the administration.
+
+            <p style="font-size: 14px; line-height: 1.6; color: #334155; margin-bottom: 16px;">
+              Your documents have been verified and your admission to <strong>Library Hub Nawalpur</strong> is now officially approved. Your student account and membership portal are active.
             </p>
-            <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 18px 0; font-size: 13px; color: #334155;">
-              <div style="margin-bottom: 8px;"><strong>Assigned Shift:</strong> ${planName}</div>
-              <div style="margin-bottom: 8px;"><strong>Monthly Fee:</strong> ₹${monthlyFee}</div>
-              <div style="margin-bottom: 8px;"><strong>Amount Paid:</strong> ₹${initialPayment}</div>
-              <div><strong>Registered Email:</strong> ${studentUser.email}</div>
+
+            {/* Membership Details Card */}
+            <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px; margin-bottom: 24px;">
+              <h3 style="margin: 0 0 12px 0; font-size: 13px; font-weight: 800; color: #0f172a; text-transform: uppercase; letter-spacing: 0.5px;">
+                📋 Your Membership Summary
+              </h3>
+              <table style="width: 100%; font-size: 13px; color: #334155; border-collapse: collapse;">
+                <tr>
+                  <td style="padding: 6px 0; color: #64748b; width: 40%;">Assigned Shift & Plan:</td>
+                  <td style="padding: 6px 0; font-weight: 700; color: #0f172a;">${planName}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 6px 0; color: #64748b;">Shift Timings:</td>
+                  <td style="padding: 6px 0; font-weight: 600; color: #0f172a;">${shiftTimings || 'As per shift schedule'}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 6px 0; color: #64748b;">Joining / Start Date:</td>
+                  <td style="padding: 6px 0; font-weight: 700; color: #d97706;">${formattedJoiningDate}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 6px 0; color: #64748b;">Monthly Fee:</td>
+                  <td style="padding: 6px 0; font-weight: 700; color: #0f172a;">₹${monthlyFee}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 6px 0; color: #64748b;">Initial Fee Paid:</td>
+                  <td style="padding: 6px 0; font-weight: 700; color: #059669;">₹${initialPayment}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 6px 0; color: #64748b;">Registered Gmail:</td>
+                  <td style="padding: 6px 0; font-weight: 600; color: #0284c7; word-break: break-all;">${studentUser.email}</td>
+                </tr>
+              </table>
             </div>
-            <p style="font-size: 14px; color: #334155; line-height: 1.6;">
-              You can now sign in to your Student Dashboard using your registered Google account to view your seat details, verify daily attendance, and track payment receipts:
-            </p>
-            <div style="text-align: center; margin: 24px 0;">
-              <a href="${loginUrl}" style="background-color: #0f172a; color: #ffffff; font-weight: bold; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-size: 14px; display: inline-block;">
-                Access Student Dashboard →
+
+            {/* Step 1: Dashboard Access */}
+            <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 18px; margin-bottom: 20px;">
+              <h3 style="margin: 0 0 10px 0; font-size: 14px; font-weight: 800; color: #166534; display: flex; align-items: center;">
+                🔑 Step 1: Dashboard Access Kaise Karein
+              </h3>
+              <ol style="margin: 0; padding-left: 20px; font-size: 13px; color: #15803d; line-height: 1.6;">
+                <li style="margin-bottom: 6px;">Neeche diye gaye <strong>"Access Student Dashboard"</strong> button par click karein.</li>
+                <li style="margin-bottom: 6px;"><strong>"Sign in with Google"</strong> choose karein aur wahi Gmail address (<strong>${studentUser.email}</strong>) select karein jisse aapne register kiya tha.</li>
+                <li>Login karte hi aapka personalized dashboard open ho jayega jisme aap apna seat shift, monthly fees receipt, aur live attendance status dekh sakte hain.</li>
+              </ol>
+            </div>
+
+            {/* Step 2: Daily Attendance Guide */}
+            <div style="background-color: #fffbeb; border: 1px solid #fde68a; border-radius: 12px; padding: 18px; margin-bottom: 24px;">
+              <h3 style="margin: 0 0 10px 0; font-size: 14px; font-weight: 800; color: #92400e;">
+                ⏱️ Step 2: Daily Attendance Kaise Mark Karein (Check-In & Check-Out)
+              </h3>
+              <ol style="margin: 0; padding-left: 20px; font-size: 13px; color: #854d0e; line-height: 1.6;">
+                <li style="margin-bottom: 8px;">
+                  <strong>Daily OTP / Desk Code:</strong> Har din library front desk par ek Daily Attendance Code generate hota hai.
+                </li>
+                <li style="margin-bottom: 8px;">
+                  <strong>Check-In:</strong> Library pahunchte hi apne phone me student dashboard open karein, <strong>"Mark Check-In"</strong> par click karein aur desk par diya gaya Daily Code enter karein. Isse aapka arrival time record ho jayega.
+                </li>
+                <li style="margin-bottom: 8px;">
+                  <strong>Check-Out:</strong> Library se padhai poori karke nikalte waqt dashboard me <strong>"Check-Out"</strong> button dabana na bhoolein. Isse aapke kul study hours (padhai ke ghante) bilkul accurate record honge.
+                </li>
+                <li>
+                  <strong>Regular Streak:</strong> Dashboard me aap apna monthly attendance chart aur study streaks dekh kar apna target maintain kar sakte hain.
+                </li>
+              </ol>
+            </div>
+
+            {/* Library Rules */}
+            <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px; margin-bottom: 24px;">
+              <h3 style="margin: 0 0 10px 0; font-size: 13px; font-weight: 800; color: #0f172a; text-transform: uppercase;">
+                📖 Library Rules & Etiquette
+              </h3>
+              <ul style="margin: 0; padding-left: 20px; font-size: 12px; color: #475569; line-height: 1.6;">
+                <li>Reading hall me shanti (pin-drop silence) banaye rakhein. Mobile phones ko silent mode par rakhein.</li>
+                <li>Video lectures ya audio classes dekhne ke liye earphones / headphones ka prayog anivarya hai.</li>
+                <li>Apni designated desk aur library premises ko saaf-suthra rakhein.</li>
+              </ul>
+            </div>
+
+            {/* CTA Button */}
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${loginUrl}" style="background-color: #0f172a; color: #ffffff; font-weight: 800; text-decoration: none; padding: 14px 32px; border-radius: 12px; font-size: 15px; display: inline-block; box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15);">
+                Open Student Dashboard →
               </a>
             </div>
-            <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #94a3b8; text-align: center;">
-              Library Hub Nawalpur · Your Space. Your Focus. Your Success.
+
+            {/* Footer */}
+            <div style="margin-top: 24px; padding-top: 18px; border-top: 1px solid #f1f5f9; font-size: 12px; color: #94a3b8; text-align: center; line-height: 1.5;">
+              <strong style="color: #64748b;">Library Hub Nawalpur</strong><br />
+              Main Road, Nawalpur Opposite Kali Mandir, Salempur, Deoria - 274509, Uttar Pradesh<br />
+              Support: <a href="mailto:libraryhubnawalpur@gmail.com" style="color: #d97706; text-decoration: none;">libraryhubnawalpur@gmail.com</a>
             </div>
           </div>
         `,

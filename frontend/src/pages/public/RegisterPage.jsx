@@ -268,20 +268,20 @@ export default function RegisterPage() {
             animate={{ opacity: 1, y: 0 }}
             className="bg-white rounded-3xl p-6 sm:p-10 shadow-soft border border-brand-surface-border text-center"
           >
-            <div className="w-16 h-16 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center mx-auto mb-4">
-              <CheckCircle2 className="w-10 h-10 stroke-[2.5]" />
+            <div className="w-16 h-16 rounded-2xl bg-brand-gold-50 border border-brand-gold-200 text-brand-gold-700 flex items-center justify-center mx-auto mb-4">
+              <Sparkles className="w-9 h-9" />
             </div>
 
             <span className="inline-block px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 uppercase tracking-wider mb-2">
-              Application Under Review
+              Pending Admin Verification
             </span>
 
             <h2 className="text-xl sm:text-2xl font-black text-brand-navy-950">
-              Registration Submitted Successfully!
+              Thank You for Choosing Library Hub!
             </h2>
 
             <p className="mt-2 text-xs sm:text-sm text-brand-navy-600 max-w-lg mx-auto">
-              Thank you, <strong>{submittedApplication.name}</strong>. Your documents have been securely uploaded to ImageKit and forwarded to the Library Hub front desk for verification.
+              Welcome, <strong>{submittedApplication.name}</strong>. Aapka registration form aur identity documents Library Hub Nawalpur desk ko securely prapt ho chuke hain.
             </p>
 
             {submittedApplication.photoUrl && (
@@ -293,7 +293,7 @@ export default function RegisterPage() {
             )}
 
             {/* Application Reference Number Card */}
-            <div className="mt-6 max-w-sm mx-auto p-4 rounded-2xl bg-brand-surface border border-brand-surface-border">
+            <div className="mt-5 max-w-sm mx-auto p-4 rounded-2xl bg-brand-surface border border-brand-surface-border">
               <span className="block text-[11px] font-bold text-brand-navy-500 uppercase tracking-wider">
                 Application Reference ID
               </span>
@@ -316,16 +316,34 @@ export default function RegisterPage() {
               </div>
             </div>
 
+            {/* Verification & Access Notice Banner */}
+            <div className="mt-6 max-w-lg mx-auto p-4 rounded-2xl bg-amber-50 border border-amber-200 text-left text-xs text-amber-950">
+              <div className="flex items-start gap-2.5">
+                <Lock className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-bold text-amber-900">
+                    Dashboard Access Notice: Locked Until Admin Approval
+                  </p>
+                  <p className="text-[11px] text-amber-800 mt-1 leading-relaxed">
+                    Suraksha aur seat allotment verification ke liye, <strong>dashboard access tab tak locked rahega jab tak Library Administration aapka admission approve nahi kar deta</strong>.
+                  </p>
+                  <p className="text-[11px] text-amber-800 mt-1 leading-relaxed">
+                    Jaise hi admin aapka application verify karenge, aapke email (<strong>{submittedApplication.email}</strong>) par confirmation mail aayega jisme <strong>dashboard login link, daily attendance mark karne ka tarika (check-in / check-out), aur library rules</strong> ki poori jankari hogi.
+                  </p>
+                </div>
+              </div>
+            </div>
+
             {/* Steps Timeline Card */}
-            <div className="mt-8 text-left max-w-md mx-auto p-5 rounded-2xl bg-brand-surface-muted/50 border border-brand-surface-border space-y-3.5 text-xs text-brand-navy-700">
+            <div className="mt-6 text-left max-w-md mx-auto p-5 rounded-2xl bg-brand-surface-muted/50 border border-brand-surface-border space-y-3.5 text-xs text-brand-navy-700">
               <div className="flex items-start gap-3">
                 <div className="w-6 h-6 rounded-full bg-emerald-600 text-white font-bold flex items-center justify-center text-xs shrink-0 mt-0.5">
                   1
                 </div>
                 <div>
-                  <p className="font-bold text-brand-navy-950">Admin Verification</p>
+                  <p className="font-bold text-brand-navy-950">Document Review (In Progress)</p>
                   <p className="text-[11px] text-brand-navy-500 mt-0.5">
-                    Our team reviews your details and Aadhar card photos.
+                    Administration aapka student photo aur Aadhar card verify kar rahi hai.
                   </p>
                 </div>
               </div>
@@ -335,9 +353,9 @@ export default function RegisterPage() {
                   2
                 </div>
                 <div>
-                  <p className="font-bold text-brand-navy-950">Approval & Email Notification</p>
+                  <p className="font-bold text-brand-navy-950">Approval & Instruction Email</p>
                   <p className="text-[11px] text-brand-navy-500 mt-0.5">
-                    You will receive an official confirmation email on <strong>{submittedApplication.email}</strong> once approved.
+                    Approve hote hi aapko congratulation email aur complete guide prapt hogi.
                   </p>
                 </div>
               </div>
@@ -347,22 +365,28 @@ export default function RegisterPage() {
                   3
                 </div>
                 <div>
-                  <p className="font-bold text-brand-navy-950">Instant Dashboard Access</p>
+                  <p className="font-bold text-brand-navy-950">Attendance & Study Access</p>
                   <p className="text-[11px] text-brand-navy-500 mt-0.5">
-                    Sign in with Google at our login portal to verify daily attendance and view receipts.
+                    Mail milne ke baad aap Google account se login karke Daily Attendance Code ke saath check-in kar sakenge.
                   </p>
                 </div>
               </div>
             </div>
 
+            {/* Actions: No login access until verified */}
             <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
-              <Link
-                to="/login"
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery(submittedApplication.applicationNumber);
+                  setActiveTab('status');
+                  setSubmittedApplication(null);
+                }}
                 className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-brand-navy-950 hover:bg-brand-navy-900 text-white text-xs font-bold transition-all shadow-soft-sm"
               >
-                <span>Go to Student Login</span>
-                <ArrowRight className="w-4 h-4" />
-              </Link>
+                <Search className="w-4 h-4 text-brand-gold-400" />
+                <span>Track Application Status</span>
+              </button>
               <Link
                 to="/"
                 className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-white hover:bg-brand-surface-muted text-brand-navy-800 text-xs font-bold border border-brand-surface-border transition-all"
