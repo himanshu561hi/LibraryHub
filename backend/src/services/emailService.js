@@ -9,16 +9,35 @@ import { EmailCampaign, EmailRecipientLog } from '../models/index.js';
  */
 let transporter = null;
 
-if (!config.email.mockMode && config.email.host && config.email.user && config.email.pass) {
-  transporter = nodemailer.createTransport({
-    host: config.email.host,
-    port: config.email.port,
-    secure: config.email.secure || config.email.port === 465,
-    auth: {
-      user: config.email.user,
-      pass: config.email.pass,
-    },
-  });
+if (!config.email.mockMode && config.email.user && config.email.pass) {
+  let host = config.email.host || 'smtp.gmail.com';
+  // Normalize and auto-correct typos like smtp.gmail.email -> smtp.gmail.com
+  if (host.toLowerCase().includes('gmail')) {
+    host = 'smtp.gmail.com';
+  }
+  const isGmail =
+    host === 'smtp.gmail.com' ||
+    (config.email.user && config.email.user.toLowerCase().endsWith('@gmail.com'));
+
+  const transportOptions = isGmail
+    ? {
+        service: 'gmail',
+        auth: {
+          user: config.email.user,
+          pass: config.email.pass,
+        },
+      }
+    : {
+        host,
+        port: config.email.port,
+        secure: config.email.secure || config.email.port === 465,
+        auth: {
+          user: config.email.user,
+          pass: config.email.pass,
+        },
+      };
+
+  transporter = nodemailer.createTransport(transportOptions);
 } else {
   // Safe mock transporter for local development and testing
   transporter = {
