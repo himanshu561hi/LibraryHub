@@ -1,6 +1,12 @@
 import mongoose from 'mongoose';
-import { Membership, User, FeeInvoice, AuditLog } from '../models/index.js';
-import { calculateNextBillingDate, generateInvoiceNumber, calculateDueDate, formatDateKey } from '../utils/billingCalculator.js';
+import { Membership, User, FeeInvoice, AuditLog, Payment } from '../models/index.js';
+import {
+  calculateNextBillingDate,
+  generateInvoiceNumber,
+  generateReceiptNumber,
+  calculateDueDate,
+  formatDateKey,
+} from '../utils/billingCalculator.js';
 import { allocatePayment } from '../utils/paymentAllocation.js';
 import { uploadToImageKit } from '../services/imagekit.service.js';
 import { successResponse, errorResponse } from '../utils/response.js';
@@ -513,6 +519,10 @@ export async function updateMembership(req, res, next) {
       monthlyFeeInPaise,
       updateCurrentUnpaidInvoice = true,
       reason,
+      feeAction = 'NO_CHANGE', // 'NO_CHANGE' | 'MARK_UNPAID' | 'MARK_PAID' | 'SET_AMOUNT'
+      paidAmountInRupees,
+      paymentMethod = 'CASH',
+      feeNotes,
     } = req.body;
 
     const membership = await Membership.findById(id);
@@ -550,30 +560,183 @@ export async function updateMembership(req, res, next) {
 
     await membership.save();
 
-    // If admin requested updating the current unpaid invoice and fee has changed
-    let updatedInvoice = null;
-    if (updateCurrentUnpaidInvoice && monthlyFeeInPaise !== undefined) {
-      const newFeePaise = parseInt(monthlyFeeInPaise, 10);
-      const latestInvoice = await FeeInvoice.findOne({
-        membershipId: membership._id,
-        status: { $in: ['unpaid', 'partially_paid'] },
-      }).sort({ billingPeriodEnd: -1 });
-
-      if (latestInvoice) {
-        latestInvoice.feeAmountInPaise = newFeePaise;
-        const newBalance = Math.max(0, newFeePaise - (latestInvoice.amountPaidInPaise || 0));
-        latestInvoice.balanceInPaise = newBalance;
-        latestInvoice.status = newBalance === 0 ? 'paid' : (latestInvoice.amountPaidInPaise > 0 ? 'partially_paid' : 'unpaid');
-        await latestInvoice.save();
-        updatedInvoice = latestInvoice;
-      }
-    }
-
+    const currentFeePaise = membership.monthlyFeeInPaise;
     const adminId = (req.user && req.user._id)
       ? req.user._id
       : (req.user && req.user.id && mongoose.Types.ObjectId.isValid(req.user.id))
         ? new mongoose.Types.ObjectId(req.user.id)
         : new mongoose.Types.ObjectId('507f1f77bcf86cd799439099');
+
+    let updatedInvoice = null;
+
+    // Fetch the latest cycle invoice for this membership
+    let latestInvoice = await FeeInvoice.findOne({
+      membershipId: membership._id,
+    }).sort({ billingPeriodEnd: -1 });
+
+    // Auto-create initial cycle invoice if missing and fee adjustment is requested
+    if (!latestInvoice && (feeAction === 'MARK_UNPAID' || feeAction === 'MARK_PAID' || feeAction === 'SET_AMOUNT')) {
+      const joinDate = membership.joiningDate || new Date();
+      const anchorDay = membership.billingAnchorDay || joinDate.getDate();
+      const nextBillDate = calculateNextBillingDate(joinDate, anchorDay);
+      const periodEnd = new Date(nextBillDate.getTime() - 24 * 60 * 60 * 1000);
+      const invoiceNumber = generateInvoiceNumber('INV', new Date());
+      const dueDate = calculateDueDate(joinDate, 7);
+      const periodKey = `${membership._id}_${formatDateKey(joinDate)}`;
+
+      latestInvoice = await FeeInvoice.create({
+        invoiceNumber,
+        membershipId: membership._id,
+        userId: membership.userId,
+        periodKey,
+        billingPeriodStart: joinDate,
+        billingPeriodEnd: periodEnd,
+        issueDate: joinDate,
+        dueDate,
+        feeAmountInPaise: currentFeePaise,
+        adjustmentsInPaise: 0,
+        amountPaidInPaise: 0,
+        balanceInPaise: currentFeePaise,
+        status: 'unpaid',
+        notes: `Billing cycle invoice for ${membership._id}`,
+      });
+    }
+
+    // --- FEE ADJUSTMENT ACTIONS ---
+    if (feeAction === 'MARK_UNPAID' && latestInvoice) {
+      // 1. Reverse any active payments associated with this invoice
+      const activePayments = await Payment.find({
+        invoiceId: latestInvoice._id,
+        isReversed: false,
+      });
+
+      for (const p of activePayments) {
+        p.isReversed = true;
+        p.reversalReason = feeNotes || reason || 'Admin correction: Marked fee as unpaid/pending';
+        p.reversedByAdminId = adminId;
+        p.reversedAt = new Date();
+        await p.save();
+      }
+
+      // 2. Reset invoice to completely unpaid
+      latestInvoice.feeAmountInPaise = currentFeePaise;
+      latestInvoice.amountPaidInPaise = 0;
+      latestInvoice.balanceInPaise = currentFeePaise;
+      latestInvoice.status = 'unpaid';
+      latestInvoice.notes = (latestInvoice.notes ? `${latestInvoice.notes} | ` : '') + (feeNotes || 'Fee marked as Unpaid/Pending by admin');
+      await latestInvoice.save();
+      updatedInvoice = latestInvoice;
+
+      await AuditLog.create({
+        actor: { id: adminId, email: req.user?.email || 'admin@libraryhub.in', role: req.user?.role || 'admin' },
+        action: 'FEE_STATUS_RESET_UNPAID',
+        targetEntity: 'FeeInvoice',
+        targetId: latestInvoice._id,
+        afterState: {
+          status: 'unpaid',
+          amountPaidInPaise: 0,
+          balanceInPaise: currentFeePaise,
+          reversedPaymentsCount: activePayments.length,
+        },
+        reason: feeNotes || reason || 'Fee reset to Unpaid by admin correction',
+      });
+    } else if (feeAction === 'MARK_PAID' && latestInvoice) {
+      // 1. Determine amount required to clear balance
+      latestInvoice.feeAmountInPaise = currentFeePaise;
+      const balanceToPay = Math.max(0, currentFeePaise - (latestInvoice.amountPaidInPaise || 0));
+
+      if (balanceToPay > 0) {
+        const receiptNumber = generateReceiptNumber('RCP', new Date());
+        await Payment.create({
+          paymentNumber: receiptNumber,
+          invoiceId: latestInvoice._id,
+          membershipId: membership._id,
+          userId: membership.userId,
+          amountInPaise: balanceToPay,
+          method: paymentMethod || 'CASH',
+          notes: feeNotes || reason || 'Marked fully paid via membership edit',
+          recordedByAdminId: adminId,
+          recordedBy: adminId,
+        });
+      }
+
+      latestInvoice.amountPaidInPaise = currentFeePaise;
+      latestInvoice.balanceInPaise = 0;
+      latestInvoice.status = 'paid';
+      latestInvoice.notes = (latestInvoice.notes ? `${latestInvoice.notes} | ` : '') + (feeNotes || 'Fee marked fully paid by admin');
+      await latestInvoice.save();
+      updatedInvoice = latestInvoice;
+
+      await AuditLog.create({
+        actor: { id: adminId, email: req.user?.email || 'admin@libraryhub.in', role: req.user?.role || 'admin' },
+        action: 'FEE_STATUS_MARKED_PAID',
+        targetEntity: 'FeeInvoice',
+        targetId: latestInvoice._id,
+        afterState: { status: 'paid', amountPaidInPaise: currentFeePaise, balanceInPaise: 0 },
+        reason: feeNotes || reason || 'Fee marked fully paid by admin',
+      });
+    } else if (feeAction === 'SET_AMOUNT' && latestInvoice) {
+      const targetPaidPaise = Math.max(0, Math.round(Number(paidAmountInRupees || 0) * 100));
+
+      // Reverse existing active payments for this invoice to prevent double counting
+      const activePayments = await Payment.find({ invoiceId: latestInvoice._id, isReversed: false });
+      for (const p of activePayments) {
+        p.isReversed = true;
+        p.reversalReason = feeNotes || reason || 'Payment reset for custom fee adjustment';
+        p.reversedByAdminId = adminId;
+        p.reversedAt = new Date();
+        await p.save();
+      }
+
+      // Record new payment if targetPaidPaise > 0
+      if (targetPaidPaise > 0) {
+        const receiptNumber = generateReceiptNumber('RCP', new Date());
+        await Payment.create({
+          paymentNumber: receiptNumber,
+          invoiceId: latestInvoice._id,
+          membershipId: membership._id,
+          userId: membership.userId,
+          amountInPaise: targetPaidPaise,
+          method: paymentMethod || 'CASH',
+          notes: feeNotes || reason || `Custom fee collected: ₹${targetPaidPaise / 100}`,
+          recordedByAdminId: adminId,
+          recordedBy: adminId,
+        });
+      }
+
+      latestInvoice.feeAmountInPaise = currentFeePaise;
+      latestInvoice.amountPaidInPaise = targetPaidPaise;
+      const newBal = Math.max(0, currentFeePaise - targetPaidPaise);
+      latestInvoice.balanceInPaise = newBal;
+      latestInvoice.status = newBal === 0 ? 'paid' : (targetPaidPaise > 0 ? 'partially_paid' : 'unpaid');
+      latestInvoice.notes = (latestInvoice.notes ? `${latestInvoice.notes} | ` : '') + (feeNotes || `Fee adjusted to ₹${targetPaidPaise / 100} paid`);
+      await latestInvoice.save();
+      updatedInvoice = latestInvoice;
+
+      await AuditLog.create({
+        actor: { id: adminId, email: req.user?.email || 'admin@libraryhub.in', role: req.user?.role || 'admin' },
+        action: 'FEE_STATUS_CUSTOM_ADJUSTED',
+        targetEntity: 'FeeInvoice',
+        targetId: latestInvoice._id,
+        afterState: { status: latestInvoice.status, amountPaidInPaise: targetPaidPaise, balanceInPaise: newBal },
+        reason: feeNotes || reason || `Custom fee adjusted to ₹${targetPaidPaise / 100}`,
+      });
+    } else if (updateCurrentUnpaidInvoice && monthlyFeeInPaise !== undefined) {
+      // Standard behavior when feeAction is NO_CHANGE: update unpaid invoice if fee changed
+      const unpaidInvoice = await FeeInvoice.findOne({
+        membershipId: membership._id,
+        status: { $in: ['unpaid', 'partially_paid'] },
+      }).sort({ billingPeriodEnd: -1 });
+
+      if (unpaidInvoice) {
+        unpaidInvoice.feeAmountInPaise = currentFeePaise;
+        const newBalance = Math.max(0, currentFeePaise - (unpaidInvoice.amountPaidInPaise || 0));
+        unpaidInvoice.balanceInPaise = newBalance;
+        unpaidInvoice.status = newBalance === 0 ? 'paid' : (unpaidInvoice.amountPaidInPaise > 0 ? 'partially_paid' : 'unpaid');
+        await unpaidInvoice.save();
+        updatedInvoice = unpaidInvoice;
+      }
+    }
 
     await AuditLog.create({
       actor: {

@@ -8,6 +8,7 @@ import {
   AuditLog,
   SiteSetting,
   RegistrationApplication,
+  EmailDeliveryLog,
 } from '../models/index.js';
 import {
   calculateNextBillingDate,
@@ -591,6 +592,9 @@ export async function approveRegistrationApplication(req, res, next) {
 
       await sendTransactionalEmail({
         to: studentUser.email,
+        recipientName: studentUser.name,
+        userId: studentUser._id,
+        emailType: 'ADMISSION_APPROVED',
         subject: `🎉 Congratulations! Your Library Hub Membership is Approved & Enrolled`,
         text: `Hello ${studentUser.name},\n\nCongratulations! Your admission application (${application.applicationNumber}) has been verified and approved by the administration. You are now officially enrolled at Library Hub Nawalpur!\n\nMEMBERSHIP DETAILS:\n- Shift & Plan: ${planName}\n- Joining Date: ${formattedJoiningDate}\n- Monthly Fee: ₹${monthlyFee}\n- Initial Payment: ₹${initialPayment}\n- Registered Email: ${studentUser.email}\n\nHOW TO ACCESS YOUR DASHBOARD:\n1. Open ${loginUrl}\n2. Click "Sign in with Google" using your registered email: ${studentUser.email}\n3. Your student portal will open with your shift details and fee receipts.\n\nHOW TO MARK DAILY ATTENDANCE (CHECK-IN & CHECK-OUT):\n1. Daily Desk Code: Every morning at the library front desk, a daily attendance code is provided.\n2. Check-In: When you arrive at the library, open your dashboard and enter the Daily Code to mark your Check-In time.\n3. Check-Out: When leaving the library after your study session, remember to click Check-Out on your dashboard to accurately record your study hours.\n\nLIBRARY RULES & ETIQUETTE:\n- Maintain complete pin-drop silence in the study hall.\n- Always use headphones/earphones for video lectures.\n- Keep your study desk clean and orderly.\n\nWelcome to Library Hub Nawalpur!\nLocation: Opposite Kali Mandir, Main Road Nawalpur, Salempur, Deoria (UP)\nEmail: libraryhubnawalpur@gmail.com`,
         html: `
@@ -781,6 +785,8 @@ export async function rejectRegistrationApplication(req, res, next) {
     try {
       await sendTransactionalEmail({
         to: application.email,
+        recipientName: application.name,
+        emailType: 'ADMISSION_REJECTED',
         subject: `Update regarding your Library Hub Nawalpur Application (${application.applicationNumber})`,
         text: `Hello ${application.name},\n\nYour application (${application.applicationNumber}) could not be approved at this time.\n\nReason: ${reason.trim()}\n\nPlease visit the front desk or contact us for assistance.\n\nLibrary Hub Nawalpur`,
         html: `
@@ -820,6 +826,158 @@ export async function rejectRegistrationApplication(req, res, next) {
   }
 }
 
+/**
+ * List all emails sent by the website / system (Email Delivery Logs)
+ */
+export async function listEmailLogs(req, res, next) {
+  try {
+    const {
+      page = 1,
+      limit = 25,
+      search = '',
+      status = 'ALL',
+      emailType = 'ALL',
+    } = req.query;
+
+    const pageNum = Math.max(1, parseInt(page, 10));
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10)));
+    const skip = (pageNum - 1) * limitNum;
+
+    const filter = {};
+
+    if (status && status !== 'ALL') {
+      filter.status = status.toUpperCase();
+    }
+
+    if (emailType && emailType !== 'ALL') {
+      filter.emailType = emailType.toUpperCase();
+    }
+
+    if (search && search.trim()) {
+      const q = search.trim();
+      const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const searchRegex = new RegExp(escaped, 'i');
+      filter.$or = [
+        { recipientEmail: searchRegex },
+        { recipientName: searchRegex },
+        { subject: searchRegex },
+      ];
+    }
+
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
+    const [logs, totalFiltered, totalAll, sentCount, failedCount, todayCount] = await Promise.all([
+      EmailDeliveryLog.find(filter)
+        .populate('userId', 'name email phone picture')
+        .sort({ sentAt: -1, createdAt: -1 })
+        .skip(skip)
+        .limit(limitNum)
+        .lean(),
+      EmailDeliveryLog.countDocuments(filter),
+      EmailDeliveryLog.countDocuments(),
+      EmailDeliveryLog.countDocuments({ status: 'SENT' }),
+      EmailDeliveryLog.countDocuments({ status: 'FAILED' }),
+      EmailDeliveryLog.countDocuments({ sentAt: { $gte: todayStart } }),
+    ]);
+
+    return successResponse(res, {
+      logs,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total: totalFiltered,
+        totalPages: Math.ceil(totalFiltered / limitNum),
+      },
+      stats: {
+        total: totalAll,
+        sent: sentCount,
+        failed: failedCount,
+        today: todayCount,
+      },
+    });
+  } catch (err) {
+    logger.error(`Error in listEmailLogs: ${err.message}`, { error: err });
+    return next(err);
+  }
+}
+
+/**
+ * Get single Email Delivery Log with complete rendered HTML body
+ */
+export async function getEmailLogById(req, res, next) {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return errorResponse(res, 'Invalid Email Log ID', 400);
+    }
+
+    const log = await EmailDeliveryLog.findById(id)
+      .populate('userId', 'name email phone picture')
+      .lean();
+
+    if (!log) {
+      return errorResponse(res, 'Email delivery log not found', 404);
+    }
+
+    return successResponse(res, { log });
+  } catch (err) {
+    logger.error(`Error in getEmailLogById: ${err.message}`, { error: err });
+    return next(err);
+  }
+}
+
+/**
+ * Resend an email from the log (e.g. if it previously failed or student requested)
+ */
+export async function resendEmail(req, res, next) {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return errorResponse(res, 'Invalid Email Log ID', 400);
+    }
+
+    const log = await EmailDeliveryLog.findById(id);
+    if (!log) {
+      return errorResponse(res, 'Email delivery log not found', 404);
+    }
+
+    const result = await sendTransactionalEmail({
+      to: log.recipientEmail,
+      recipientName: log.recipientName,
+      userId: log.userId,
+      emailType: log.emailType,
+      subject: log.subject,
+      html: log.htmlContent,
+      text: log.textContent,
+      metadata: { ...log.metadata, resentFromLogId: log._id },
+    });
+
+    await AuditLog.create({
+      actor: {
+        id: req.user._id,
+        email: req.user.email,
+        role: req.user.role,
+      },
+      action: 'EMAIL_RESENT',
+      targetEntity: 'EmailDeliveryLog',
+      targetId: log._id,
+      beforeState: { status: log.status, error: log.error },
+      afterState: { success: result.success, messageId: result.messageId, error: result.error },
+      reason: `Admin triggered resend of email "${log.subject}" to ${log.recipientEmail}`,
+    });
+
+    if (result.success) {
+      return successResponse(res, { messageId: result.messageId }, `Email resent successfully to ${log.recipientEmail}!`);
+    } else {
+      return errorResponse(res, `Failed to resend email: ${result.error}`, 500);
+    }
+  } catch (err) {
+    logger.error(`Error in resendEmail: ${err.message}`, { error: err });
+    return next(err);
+  }
+}
+
 export default {
   listStudents,
   getStudentDetail,
@@ -830,4 +988,7 @@ export default {
   listRegistrationApplications,
   approveRegistrationApplication,
   rejectRegistrationApplication,
+  listEmailLogs,
+  getEmailLogById,
+  resendEmail,
 };

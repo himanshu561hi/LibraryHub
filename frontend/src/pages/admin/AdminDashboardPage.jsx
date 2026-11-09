@@ -39,6 +39,8 @@ import {
   ZoomIn,
   Phone,
   Printer,
+  MailCheck,
+  RotateCcw,
 } from 'lucide-react';
 
 export default function AdminDashboardPage() {
@@ -136,10 +138,27 @@ export default function AdminDashboardPage() {
     monthlyFee: 500,
     updateCurrentUnpaidInvoice: true,
     reason: '',
+    feeAction: 'NO_CHANGE', // 'NO_CHANGE' | 'MARK_UNPAID' | 'MARK_PAID' | 'SET_AMOUNT'
+    paidAmountInRupees: 500,
+    paymentMethod: 'CASH',
+    feeNotes: '',
   });
   const [submittingEdit, setSubmittingEdit] = useState(false);
   const [editError, setEditError] = useState('');
   const [reactivatingId, setReactivatingId] = useState(null);
+
+  // Email Delivery Logs State
+  const [emailLogs, setEmailLogs] = useState([]);
+  const [emailLogStats, setEmailLogStats] = useState({ total: 0, sent: 0, failed: 0, today: 0 });
+  const [loadingEmailLogs, setLoadingEmailLogs] = useState(false);
+  const [emailLogSearch, setEmailLogSearch] = useState('');
+  const [emailLogStatusFilter, setEmailLogStatusFilter] = useState('ALL');
+  const [emailLogTypeFilter, setEmailLogTypeFilter] = useState('ALL');
+  const [emailLogPage, setEmailLogPage] = useState(1);
+  const [emailLogPagination, setEmailLogPagination] = useState({ page: 1, limit: 25, total: 0, totalPages: 1 });
+  const [selectedEmailLog, setSelectedEmailLog] = useState(null);
+  const [showEmailPreviewModal, setShowEmailPreviewModal] = useState(false);
+  const [resendingEmailId, setResendingEmailId] = useState(null);
 
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentForm, setPaymentForm] = useState({
@@ -317,6 +336,49 @@ export default function AdminDashboardPage() {
       console.error('Error loading audit logs:', err);
     } finally {
       setLoadingAudit(false);
+    }
+  };
+
+  // Load System Email Delivery Logs
+  const fetchEmailLogs = async (page = emailLogPage) => {
+    try {
+      setLoadingEmailLogs(true);
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: '25',
+      });
+      if (emailLogSearch.trim()) params.append('search', emailLogSearch.trim());
+      if (emailLogStatusFilter !== 'ALL') params.append('status', emailLogStatusFilter);
+      if (emailLogTypeFilter !== 'ALL') params.append('emailType', emailLogTypeFilter);
+
+      const res = await client.get(`${API_ENDPOINTS.ADMIN.EMAIL_LOGS}?${params.toString()}`);
+      if (res && res.success) {
+        setEmailLogs(res.data.logs || []);
+        setEmailLogPagination(res.data.pagination || { page: 1, limit: 25, total: 0, totalPages: 1 });
+        if (res.data.stats) {
+          setEmailLogStats(res.data.stats);
+        }
+      }
+    } catch (err) {
+      console.error('Error loading email logs:', err);
+    } finally {
+      setLoadingEmailLogs(false);
+    }
+  };
+
+  // Resend Email handler
+  const handleResendEmail = async (logId) => {
+    try {
+      setResendingEmailId(logId);
+      const res = await client.post(API_ENDPOINTS.ADMIN.RESEND_EMAIL(logId));
+      if (res && res.success) {
+        alert(res.message || 'Email resent successfully!');
+        fetchEmailLogs();
+      }
+    } catch (err) {
+      alert(err.message || 'Failed to resend email');
+    } finally {
+      setResendingEmailId(null);
     }
   };
 
@@ -622,6 +684,7 @@ export default function AdminDashboardPage() {
     if (tab === 'promotions') fetchPromoSettings();
     if (tab === 'email-history') fetchCampaigns();
     if (tab === 'audit-logs') fetchAuditLogs();
+    if (tab === 'email-logs') fetchEmailLogs(1);
   };
 
   // Copy Today's Daily Code
@@ -680,15 +743,22 @@ export default function AdminDashboardPage() {
     else if (m.planId?.includes('24') || m.planId?.includes('full-day')) pType = 'full_day_24h';
     else if (m.planId === 'custom') pType = 'custom';
 
+    const currentMonthlyFee = (m.monthlyFeeInPaise || 0) / 100;
+    const isDue = (m.billingSummary?.totalDuePaise || 0) > 0;
+
     setEditForm({
       planType: pType,
       planId: m.planId || 'day-shift',
       planName: m.planName || 'Day Shift Plan (7:00 AM – 8:00 PM)',
       slotType: m.slotType || 'DAY',
       shiftTimings: m.shiftTimings || '7:00 AM - 8:00 PM',
-      monthlyFee: (m.monthlyFeeInPaise || 0) / 100,
+      monthlyFee: currentMonthlyFee,
       updateCurrentUnpaidInvoice: true,
       reason: '',
+      feeAction: 'NO_CHANGE',
+      paidAmountInRupees: isDue ? 0 : currentMonthlyFee,
+      paymentMethod: 'CASH',
+      feeNotes: '',
     });
     setShowEditMemberModal(true);
   };
@@ -759,6 +829,10 @@ export default function AdminDashboardPage() {
         monthlyFeeInPaise: feeInPaise,
         updateCurrentUnpaidInvoice: editForm.updateCurrentUnpaidInvoice,
         reason: editForm.reason.trim() || 'Shift and/or monthly fee updated by admin',
+        feeAction: editForm.feeAction,
+        paidAmountInRupees: editForm.paidAmountInRupees !== '' ? Number(editForm.paidAmountInRupees) : undefined,
+        paymentMethod: editForm.paymentMethod,
+        feeNotes: editForm.feeNotes || editForm.reason,
       });
 
       if (res && res.success) {
@@ -1280,6 +1354,7 @@ export default function AdminDashboardPage() {
           { id: 'send-mail', label: 'Send Announcements', icon: Mail },
           { id: 'email-history', label: 'Campaign Logs', icon: FileText },
           { id: 'audit-logs', label: 'Audit Trail', icon: Lock },
+          { id: 'email-logs', label: 'Email Logs', icon: MailCheck },
           { id: 'overview', label: 'Overview & Reports', icon: Shield },
         ].map((tab) => {
           const Icon = tab.icon;
@@ -2709,6 +2784,324 @@ export default function AdminDashboardPage() {
         </div>
       )}
 
+      {/* TAB: SYSTEM EMAIL DELIVERY LOGS */}
+      {activeTab === 'email-logs' && (
+        <div className="space-y-6">
+          {/* Header & Metrics */}
+          <div className="bg-white rounded-2xl p-6 shadow-soft border border-brand-surface-border">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+              <div>
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 flex items-center justify-center">
+                    <MailCheck className="w-4 h-4" />
+                  </div>
+                  <h2 className="text-lg font-bold text-brand-navy-950">
+                    System Email Delivery Logs (ईमेल डिलीवरी रिकॉर्ड)
+                  </h2>
+                </div>
+                <p className="text-xs text-brand-navy-600 mt-1">
+                  Track every email dispatched by Library Hub: admission approvals, registration confirmations, attendance check-in/out, payment receipts, fee reminders, and announcements.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => fetchEmailLogs(emailLogPage)}
+                disabled={loadingEmailLogs}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-brand-surface-muted hover:bg-brand-surface-border text-brand-navy-800 transition-colors self-start md:self-auto shrink-0"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${loadingEmailLogs ? 'animate-spin' : ''}`} />
+                <span>Refresh Logs</span>
+              </button>
+            </div>
+
+            {/* Email Metric Cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-brand-surface-border">
+              <div className="bg-brand-surface-muted/60 p-3.5 rounded-xl border border-brand-surface-border">
+                <span className="text-[10px] font-bold text-brand-navy-500 uppercase block">Total Dispatched</span>
+                <span className="text-xl font-bold text-brand-navy-950 mt-0.5 block">{emailLogStats.total}</span>
+              </div>
+              <div className="bg-emerald-50/70 p-3.5 rounded-xl border border-emerald-200">
+                <span className="text-[10px] font-bold text-emerald-800 uppercase block">Delivered / Sent</span>
+                <span className="text-xl font-bold text-emerald-700 mt-0.5 block">{emailLogStats.sent}</span>
+              </div>
+              <div className="bg-rose-50/70 p-3.5 rounded-xl border border-rose-200">
+                <span className="text-[10px] font-bold text-rose-800 uppercase block">Failed / Bounced</span>
+                <span className="text-xl font-bold text-rose-700 mt-0.5 block">{emailLogStats.failed}</span>
+              </div>
+              <div className="bg-brand-gold-50/70 p-3.5 rounded-xl border border-brand-gold-200">
+                <span className="text-[10px] font-bold text-brand-gold-900 uppercase block">Sent Today</span>
+                <span className="text-xl font-bold text-brand-gold-800 mt-0.5 block">{emailLogStats.today}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Search & Filter Bar */}
+          <div className="bg-white rounded-2xl p-4 shadow-soft border border-brand-surface-border">
+            <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3">
+              {/* Search Bar */}
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 absolute left-3.5 top-3 text-brand-navy-400" />
+                <input
+                  type="text"
+                  placeholder="Search by student name, email, or subject..."
+                  value={emailLogSearch}
+                  onChange={(e) => setEmailLogSearch(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') fetchEmailLogs(1);
+                  }}
+                  className="w-full pl-10 pr-4 py-2 text-xs rounded-xl border border-brand-surface-border text-brand-navy-950 placeholder-brand-navy-400 focus:outline-none focus:ring-2 focus:ring-brand-gold-500 bg-white"
+                />
+              </div>
+
+              {/* Status Filter */}
+              <div className="flex items-center gap-2">
+                <select
+                  value={emailLogStatusFilter}
+                  onChange={(e) => {
+                    setEmailLogStatusFilter(e.target.value);
+                    setTimeout(() => fetchEmailLogs(1), 0);
+                  }}
+                  className="px-3 py-2 text-xs rounded-xl border border-brand-surface-border text-brand-navy-800 font-semibold focus:outline-none focus:ring-2 focus:ring-brand-gold-500 bg-white"
+                >
+                  <option value="ALL">All Statuses (सभी स्थिति)</option>
+                  <option value="SENT">✓ Sent / Delivered (सफल)</option>
+                  <option value="FAILED">⚠️ Failed / Error (विफल)</option>
+                </select>
+
+                {/* Email Type Filter */}
+                <select
+                  value={emailLogTypeFilter}
+                  onChange={(e) => {
+                    setEmailLogTypeFilter(e.target.value);
+                    setTimeout(() => fetchEmailLogs(1), 0);
+                  }}
+                  className="px-3 py-2 text-xs rounded-xl border border-brand-surface-border text-brand-navy-800 font-semibold focus:outline-none focus:ring-2 focus:ring-brand-gold-500 bg-white"
+                >
+                  <option value="ALL">All Email Types (सभी प्रकार)</option>
+                  <option value="ADMISSION_APPROVED">🎉 Admission Approved</option>
+                  <option value="REGISTRATION_RECEIVED">📝 Registration Received</option>
+                  <option value="ATTENDANCE_IN">🟢 Attendance Check-In</option>
+                  <option value="ATTENDANCE_OUT">🔵 Attendance Check-Out</option>
+                  <option value="PAYMENT_RECEIPT">🧾 Payment Receipt</option>
+                  <option value="FEE_REMINDER">⏰ Fee Due Reminder</option>
+                  <option value="ANNOUNCEMENT">📢 Broadcast Announcement</option>
+                  <option value="ADMISSION_REJECTED">❌ Application Rejected</option>
+                </select>
+
+                <button
+                  type="button"
+                  onClick={() => fetchEmailLogs(1)}
+                  className="px-4 py-2 text-xs font-bold rounded-xl bg-brand-navy-950 text-white hover:bg-brand-navy-900 transition-colors shrink-0"
+                >
+                  Search
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Table Container */}
+          <div className="bg-white rounded-2xl p-6 shadow-soft border border-brand-surface-border">
+            {loadingEmailLogs ? (
+              <div className="py-16 text-center text-xs font-semibold text-brand-navy-500">
+                <Loader2 className="w-6 h-6 animate-spin mx-auto text-brand-gold-600 mb-2" />
+                Loading email delivery records...
+              </div>
+            ) : emailLogs.length === 0 ? (
+              <div className="py-16 text-center">
+                <div className="w-12 h-12 rounded-full bg-brand-surface-muted flex items-center justify-center mx-auto text-brand-navy-400 mb-3">
+                  <Mail className="w-6 h-6" />
+                </div>
+                <h3 className="text-sm font-bold text-brand-navy-950">No Email Delivery Records Found</h3>
+                <p className="text-xs text-brand-navy-500 mt-1 max-w-sm mx-auto">
+                  {emailLogSearch || emailLogStatusFilter !== 'ALL' || emailLogTypeFilter !== 'ALL'
+                    ? 'No email records match your active search or filters.'
+                    : 'System emails dispatched for registrations, admissions, attendance, payments, and reminders will appear here.'}
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-brand-surface-border text-brand-navy-500 uppercase font-bold tracking-wider">
+                      <th className="py-3 px-4">Recipient</th>
+                      <th className="py-3 px-4">Email Subject & Purpose</th>
+                      <th className="py-3 px-4">Date & Time (IST)</th>
+                      <th className="py-3 px-4">Delivery Status</th>
+                      <th className="py-3 px-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-brand-surface-border">
+                    {emailLogs.map((log) => {
+                      const typeConfig = {
+                        ADMISSION_APPROVED: { label: 'Admission Approved', bg: 'bg-emerald-100 text-emerald-800 border-emerald-200' },
+                        REGISTRATION_RECEIVED: { label: 'Application Received', bg: 'bg-amber-100 text-amber-800 border-amber-200' },
+                        ATTENDANCE_IN: { label: 'Check IN', bg: 'bg-teal-100 text-teal-800 border-teal-200' },
+                        ATTENDANCE_OUT: { label: 'Check OUT', bg: 'bg-blue-100 text-blue-800 border-blue-200' },
+                        PAYMENT_RECEIPT: { label: 'Payment Receipt', bg: 'bg-green-100 text-green-800 border-green-200' },
+                        FEE_REMINDER: { label: 'Fee Reminder', bg: 'bg-orange-100 text-orange-800 border-orange-200' },
+                        ANNOUNCEMENT: { label: 'Announcement', bg: 'bg-purple-100 text-purple-800 border-purple-200' },
+                        ADMISSION_REJECTED: { label: 'Application Rejected', bg: 'bg-rose-100 text-rose-800 border-rose-200' },
+                      }[log.emailType] || { label: 'Transactional', bg: 'bg-slate-100 text-slate-800 border-slate-200' };
+
+                      return (
+                        <tr key={log._id} className="hover:bg-brand-surface-muted/50 transition-colors">
+                          {/* Recipient */}
+                          <td className="py-3 px-4">
+                            <div className="flex items-center gap-2.5">
+                              {log.userId?.picture ? (
+                                <img
+                                  src={log.userId.picture}
+                                  alt="Student"
+                                  className="w-8 h-8 rounded-full object-cover border border-brand-surface-border shrink-0"
+                                />
+                              ) : (
+                                <div className="w-8 h-8 rounded-full bg-brand-surface-muted border border-brand-surface-border flex items-center justify-center text-brand-navy-700 font-bold text-xs shrink-0">
+                                  {(log.recipientName || log.recipientEmail || 'U').charAt(0).toUpperCase()}
+                                </div>
+                              )}
+                              <div>
+                                <span className="font-bold text-brand-navy-950 block">
+                                  {log.recipientName || 'Student'}
+                                </span>
+                                <span className="text-[11px] text-brand-navy-500 font-mono block">
+                                  {log.recipientEmail}
+                                </span>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Subject & Purpose */}
+                          <td className="py-3 px-4">
+                            <div className="max-w-md">
+                              <span className="font-semibold text-brand-navy-950 block truncate">
+                                {log.subject}
+                              </span>
+                              <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border mt-1 ${typeConfig.bg}`}>
+                                {typeConfig.label}
+                              </span>
+                            </div>
+                          </td>
+
+                          {/* Date & Time */}
+                          <td className="py-3 px-4 text-brand-navy-600 font-mono text-[11px] whitespace-nowrap">
+                            {new Date(log.sentAt || log.createdAt).toLocaleDateString('en-IN', {
+                              day: 'numeric',
+                              month: 'short',
+                              year: 'numeric',
+                            })}
+                            <span className="block text-[10px] text-brand-navy-400">
+                              {new Date(log.sentAt || log.createdAt).toLocaleTimeString('en-IN', {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                hour12: true,
+                              })}
+                            </span>
+                          </td>
+
+                          {/* Delivery Status */}
+                          <td className="py-3 px-4 whitespace-nowrap">
+                            {log.status === 'SENT' ? (
+                              <div>
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                  <Check className="w-3 h-3" />
+                                  <span>Sent / Delivered</span>
+                                </span>
+                                {log.messageId && (
+                                  <span className="block text-[9px] font-mono text-brand-navy-400 truncate max-w-[130px] mt-0.5" title={log.messageId}>
+                                    ID: {log.messageId}
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              <div>
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-rose-100 text-rose-800 border border-rose-200">
+                                  <AlertTriangle className="w-3 h-3" />
+                                  <span>Failed</span>
+                                </span>
+                                {log.error && (
+                                  <span className="block text-[10px] text-rose-700 max-w-[180px] truncate mt-0.5" title={log.error}>
+                                    {log.error}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </td>
+
+                          {/* Actions */}
+                          <td className="py-3 px-4 text-right whitespace-nowrap">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedEmailLog(log);
+                                  setShowEmailPreviewModal(true);
+                                }}
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-brand-surface-border text-brand-navy-800 hover:bg-brand-surface-muted text-xs font-semibold transition-colors shadow-soft-sm"
+                                title="View Email Preview"
+                              >
+                                <Eye className="w-3.5 h-3.5 text-brand-gold-600" />
+                                <span>Preview</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleResendEmail(log._id)}
+                                disabled={resendingEmailId === log._id}
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-brand-surface-border text-brand-navy-700 hover:bg-brand-surface-muted text-xs font-medium transition-colors shadow-soft-sm disabled:opacity-50"
+                                title="Resend this email"
+                              >
+                                <RotateCcw className={`w-3.5 h-3.5 ${resendingEmailId === log._id ? 'animate-spin text-brand-gold-600' : ''}`} />
+                                <span className="hidden sm:inline">Resend</span>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Pagination Controls */}
+            {emailLogPagination.totalPages > 1 && (
+              <div className="flex items-center justify-between pt-4 mt-4 border-t border-brand-surface-border text-xs text-brand-navy-600">
+                <span>
+                  Page {emailLogPagination.page} of {emailLogPagination.totalPages} ({emailLogPagination.total} total emails)
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={emailLogPagination.page <= 1 || loadingEmailLogs}
+                    onClick={() => {
+                      const prevPage = emailLogPagination.page - 1;
+                      setEmailLogPage(prevPage);
+                      fetchEmailLogs(prevPage);
+                    }}
+                    className="px-3 py-1.5 rounded-lg border border-brand-surface-border text-brand-navy-800 disabled:opacity-40 hover:bg-brand-surface-muted font-semibold transition-colors"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    type="button"
+                    disabled={emailLogPagination.page >= emailLogPagination.totalPages || loadingEmailLogs}
+                    onClick={() => {
+                      const nextPage = emailLogPagination.page + 1;
+                      setEmailLogPage(nextPage);
+                      fetchEmailLogs(nextPage);
+                    }}
+                    className="px-3 py-1.5 rounded-lg border border-brand-surface-border text-brand-navy-800 disabled:opacity-40 hover:bg-brand-surface-muted font-semibold transition-colors"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* TAB 8: PROMOTIONS, BANNERS & ENTRY POPUP */}
       {activeTab === 'promotions' && (
         <div className="space-y-6">
@@ -4063,6 +4456,164 @@ export default function AdminDashboardPage() {
                 </div>
               </label>
 
+              {/* Fee Payment Status & Billing Adjustment */}
+              <div className="p-3.5 rounded-xl bg-amber-50/70 border border-amber-200/90 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="block font-bold text-amber-950 uppercase tracking-wider text-[11px]">
+                      Fee Payment Status & Correction (फीस स्थिति समायोजन)
+                    </label>
+                    <p className="text-[10px] text-amber-800">
+                      Update or correct fee status if accidentally marked as paid or unpaid
+                    </p>
+                  </div>
+                  {/* Current Status Badge */}
+                  <div>
+                    {editingMembership?.billingSummary?.totalDuePaise > 0 ? (
+                      <span className="px-2 py-0.5 rounded-md bg-rose-100 text-rose-800 border border-rose-300 text-[10px] font-bold">
+                        ⚠️ Due: ₹{editingMembership.billingSummary.totalDuePaise / 100}
+                      </span>
+                    ) : editingMembership?.billingSummary?.isAdvancePaid ? (
+                      <span className="px-2 py-0.5 rounded-md bg-purple-100 text-purple-800 border border-purple-300 text-[10px] font-bold">
+                        ✓ Advance Paid
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 border border-emerald-300 text-[10px] font-bold">
+                        ✓ Current Cycle Paid
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Radio Options */}
+                <div className="space-y-2">
+                  <label className={`flex items-start gap-2.5 p-2.5 rounded-lg border cursor-pointer transition-all ${
+                    editForm.feeAction === 'NO_CHANGE'
+                      ? 'bg-white border-brand-navy-950 shadow-soft-sm'
+                      : 'bg-white/80 border-amber-200 hover:bg-white'
+                  }`}>
+                    <input
+                      type="radio"
+                      name="feeAction"
+                      value="NO_CHANGE"
+                      checked={editForm.feeAction === 'NO_CHANGE'}
+                      onChange={() => setEditForm({ ...editForm, feeAction: 'NO_CHANGE' })}
+                      className="mt-0.5 text-brand-navy-950 focus:ring-brand-gold-500"
+                    />
+                    <div>
+                      <span className="font-bold text-brand-navy-950 block text-xs">No Change (वर्तमान स्थिति रखें)</span>
+                      <span className="text-[10px] text-brand-navy-500 block">Keep current payments and invoices as they are</span>
+                    </div>
+                  </label>
+
+                  <label className={`flex items-start gap-2.5 p-2.5 rounded-lg border cursor-pointer transition-all ${
+                    editForm.feeAction === 'MARK_UNPAID'
+                      ? 'bg-rose-50 border-rose-500 shadow-soft-sm'
+                      : 'bg-white/80 border-amber-200 hover:bg-white'
+                  }`}>
+                    <input
+                      type="radio"
+                      name="feeAction"
+                      value="MARK_UNPAID"
+                      checked={editForm.feeAction === 'MARK_UNPAID'}
+                      onChange={() => setEditForm({ ...editForm, feeAction: 'MARK_UNPAID' })}
+                      className="mt-0.5 text-rose-600 focus:ring-rose-500"
+                    />
+                    <div>
+                      <span className="font-bold text-rose-900 block text-xs">
+                        ⚠️ Mark as UNPAID / DUE (बकाया मार्क करें - फीस पेंडिंग है)
+                      </span>
+                      <span className="text-[10px] text-rose-700 block">
+                        Reverses any recorded payments for this cycle and marks ₹{editForm.monthlyFee} as Pending / Due. Use this if you mistakenly marked the fee as paid!
+                      </span>
+                    </div>
+                  </label>
+
+                  <label className={`flex items-start gap-2.5 p-2.5 rounded-lg border cursor-pointer transition-all ${
+                    editForm.feeAction === 'MARK_PAID'
+                      ? 'bg-emerald-50 border-emerald-500 shadow-soft-sm'
+                      : 'bg-white/80 border-amber-200 hover:bg-white'
+                  }`}>
+                    <input
+                      type="radio"
+                      name="feeAction"
+                      value="MARK_PAID"
+                      checked={editForm.feeAction === 'MARK_PAID'}
+                      onChange={() => setEditForm({ ...editForm, feeAction: 'MARK_PAID' })}
+                      className="mt-0.5 text-emerald-600 focus:ring-emerald-500"
+                    />
+                    <div>
+                      <span className="font-bold text-emerald-950 block text-xs">
+                        ✓ Mark as FULLY PAID (पूरा भुगतान प्राप्त हुआ)
+                      </span>
+                      <span className="text-[10px] text-emerald-700 block">
+                        Clears all outstanding cycle dues and records full payment of ₹{editForm.monthlyFee}
+                      </span>
+                    </div>
+                  </label>
+
+                  <label className={`flex items-start gap-2.5 p-2.5 rounded-lg border cursor-pointer transition-all ${
+                    editForm.feeAction === 'SET_AMOUNT'
+                      ? 'bg-amber-100/70 border-brand-gold-500 shadow-soft-sm'
+                      : 'bg-white/80 border-amber-200 hover:bg-white'
+                  }`}>
+                    <input
+                      type="radio"
+                      name="feeAction"
+                      value="SET_AMOUNT"
+                      checked={editForm.feeAction === 'SET_AMOUNT'}
+                      onChange={() => setEditForm({ ...editForm, feeAction: 'SET_AMOUNT' })}
+                      className="mt-0.5 text-brand-gold-600 focus:ring-brand-gold-500"
+                    />
+                    <div>
+                      <span className="font-bold text-brand-navy-950 block text-xs">
+                        Custom Paid Amount (कस्टम राशि दर्ज करें)
+                      </span>
+                      <span className="text-[10px] text-brand-navy-600 block">
+                        Enter exact amount collected (partial or advance)
+                      </span>
+                    </div>
+                  </label>
+                </div>
+
+                {/* Conditional Payment Method & Amount input */}
+                {(editForm.feeAction === 'MARK_PAID' || editForm.feeAction === 'SET_AMOUNT') && (
+                  <div className="grid grid-cols-2 gap-2 pt-2 border-t border-amber-200/80">
+                    {editForm.feeAction === 'SET_AMOUNT' && (
+                      <div>
+                        <label className="block font-bold text-brand-navy-800 text-[10px] uppercase mb-1">
+                          Amount Paid (₹) *
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="1"
+                          required
+                          value={editForm.paidAmountInRupees}
+                          onChange={(e) => setEditForm({ ...editForm, paidAmountInRupees: e.target.value })}
+                          className="w-full px-2.5 py-1.5 rounded-lg border border-brand-surface-border text-brand-navy-950 font-bold text-xs focus:ring-2 focus:ring-brand-gold-500"
+                          placeholder="e.g. 500"
+                        />
+                      </div>
+                    )}
+                    <div className={editForm.feeAction === 'MARK_PAID' ? 'col-span-2' : ''}>
+                      <label className="block font-bold text-brand-navy-800 text-[10px] uppercase mb-1">
+                        Payment Mode
+                      </label>
+                      <select
+                        value={editForm.paymentMethod}
+                        onChange={(e) => setEditForm({ ...editForm, paymentMethod: e.target.value })}
+                        className="w-full px-2.5 py-1.5 rounded-lg border border-brand-surface-border text-brand-navy-950 font-semibold text-xs focus:ring-2 focus:ring-brand-gold-500 bg-white"
+                      >
+                        <option value="CASH">Cash (नकद)</option>
+                        <option value="UPI">UPI / QR Code</option>
+                        <option value="BANK_TRANSFER">Bank Transfer / NEFT</option>
+                      </select>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {/* Reason / Notes */}
               <div>
                 <label className="block font-bold text-brand-navy-800 uppercase tracking-wider mb-1">
@@ -4996,6 +5547,103 @@ export default function AdminDashboardPage() {
               alt={lightboxImage.title || 'Document Preview'}
               className="max-h-[82vh] max-w-[92vw] object-contain"
             />
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: EMAIL PREVIEW & INSPECTOR */}
+      {showEmailPreviewModal && selectedEmailLog && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-3 sm:p-4 bg-brand-navy-950/75 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-2xl w-full p-5 sm:p-6 shadow-2xl border border-brand-surface-border my-auto relative max-h-[90vh] flex flex-col">
+            {/* Modal Header */}
+            <div className="flex items-start justify-between pb-3 border-b border-brand-surface-border shrink-0">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base font-bold text-brand-navy-950">
+                    Email Delivery Preview & Inspector
+                  </h3>
+                  <span
+                    className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                      selectedEmailLog.status === 'SENT'
+                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                        : 'bg-rose-100 text-rose-800 border border-rose-200'
+                    }`}
+                  >
+                    {selectedEmailLog.status === 'SENT' ? 'Delivered' : 'Failed'}
+                  </span>
+                </div>
+                <p className="text-xs text-brand-navy-500 mt-0.5">
+                  To: <span className="font-bold text-brand-navy-950">{selectedEmailLog.recipientName || 'Student'}</span> &lt;{selectedEmailLog.recipientEmail}&gt;
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowEmailPreviewModal(false);
+                  setSelectedEmailLog(null);
+                }}
+                className="p-1 rounded-lg text-brand-navy-400 hover:text-brand-navy-700 hover:bg-brand-surface-muted"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Email Meta Info Strip */}
+            <div className="bg-brand-surface-muted/60 p-3 rounded-xl border border-brand-surface-border text-xs space-y-1.5 my-3 shrink-0">
+              <div className="flex items-center justify-between">
+                <span className="text-brand-navy-500 font-semibold">Subject:</span>
+                <span className="font-bold text-brand-navy-950 text-right">{selectedEmailLog.subject}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-brand-navy-500 font-semibold">Date Sent (IST):</span>
+                <span className="font-mono text-brand-navy-800">
+                  {new Date(selectedEmailLog.sentAt || selectedEmailLog.createdAt).toLocaleString('en-IN')}
+                </span>
+              </div>
+              {selectedEmailLog.error && (
+                <div className="p-2 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-[11px] font-semibold">
+                  ⚠️ Error: {selectedEmailLog.error}
+                </div>
+              )}
+            </div>
+
+            {/* Rendered HTML Body Preview */}
+            <div className="flex-1 overflow-y-auto border border-brand-surface-border rounded-xl p-4 bg-slate-50 min-h-[250px]">
+              {selectedEmailLog.htmlContent ? (
+                <div
+                  className="prose prose-sm max-w-none text-brand-navy-950 bg-white p-4 rounded-lg shadow-soft-sm"
+                  dangerouslySetInnerHTML={{ __html: selectedEmailLog.htmlContent }}
+                />
+              ) : (
+                <pre className="text-xs font-mono text-brand-navy-800 whitespace-pre-wrap">
+                  {selectedEmailLog.textContent || 'No body content available.'}
+                </pre>
+              )}
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex items-center justify-between pt-3 border-t border-brand-surface-border mt-3 shrink-0">
+              <button
+                type="button"
+                onClick={() => handleResendEmail(selectedEmailLog._id)}
+                disabled={resendingEmailId === selectedEmailLog._id}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-brand-navy-950 text-white hover:bg-brand-navy-900 transition-colors shadow-soft-sm disabled:opacity-50"
+              >
+                <RotateCcw className={`w-3.5 h-3.5 ${resendingEmailId === selectedEmailLog._id ? 'animate-spin text-brand-gold-400' : ''}`} />
+                <span>Resend This Email</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowEmailPreviewModal(false);
+                  setSelectedEmailLog(null);
+                }}
+                className="px-4 py-2 rounded-xl text-xs font-semibold bg-brand-surface-muted hover:bg-brand-surface-border text-brand-navy-800 transition-colors"
+              >
+                Close Preview
+              </button>
+            </div>
           </div>
         </div>
       )}

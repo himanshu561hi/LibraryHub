@@ -1,7 +1,7 @@
 import { jest } from '@jest/globals';
 import request from 'supertest';
 import app from '../src/app.js';
-import { User, Membership } from '../src/models/index.js';
+import { User, Admin, Membership, EmailDeliveryLog, FeeInvoice, Payment } from '../src/models/index.js';
 import { generateToken } from '../src/utils/token.js';
 import { calculateNextBillingDate, calculateDueDate, generateInvoiceNumber, generateReceiptNumber } from '../src/utils/billingCalculator.js';
 import { escapeCsvCell } from '../src/controllers/admin.controller.js';
@@ -145,6 +145,142 @@ describe('Phase 05 - Phase 09 Features and Business Rules', () => {
 
       expect(res.status).toBe(403);
       expect(res.body.error.code).toBe('FORBIDDEN');
+    });
+  });
+
+  describe('System Email Delivery Logs & Fee Status Correction', () => {
+    test('creates and queries EmailDeliveryLog entries for admin review', async () => {
+      const adminToken = generateToken({
+        id: '507f1f77bcf86cd799439011',
+        email: 'admin@libraryhub.in',
+        role: 'admin',
+      });
+
+      jest.spyOn(Admin, 'findById').mockResolvedValue({
+        _id: '507f1f77bcf86cd799439011',
+        name: 'Admin User',
+        email: 'admin@libraryhub.in',
+        role: 'admin',
+        isActive: true,
+      });
+
+      const sampleLog = await EmailDeliveryLog.create({
+        recipientEmail: 'student.delivery@example.com',
+        recipientName: 'Delivery Student',
+        subject: '🎉 Congratulations! Your Library Hub Membership is Approved',
+        htmlContent: '<p>Welcome to Library Hub</p>',
+        emailType: 'ADMISSION_APPROVED',
+        status: 'SENT',
+        messageId: 'mock-delivery-12345',
+        sentAt: new Date(),
+      });
+
+      expect(sampleLog._id).toBeDefined();
+      expect(sampleLog.status).toBe('SENT');
+
+      const res = await request(app)
+        .get('/api/v1/admin/email-logs')
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(Array.isArray(res.body.data.logs)).toBe(true);
+      expect(res.body.data.stats).toBeDefined();
+      expect(res.body.data.stats.total).toBeGreaterThanOrEqual(1);
+
+      // Cleanup
+      await EmailDeliveryLog.findByIdAndDelete(sampleLog._id);
+    });
+
+    test('updates membership and applies feeAction MARK_UNPAID to reverse accidental payments', async () => {
+      const adminToken = generateToken({
+        id: '507f1f77bcf86cd799439011',
+        email: 'admin@libraryhub.in',
+        role: 'admin',
+      });
+
+      jest.spyOn(Admin, 'findById').mockResolvedValue({
+        _id: '507f1f77bcf86cd799439011',
+        name: 'Admin User',
+        email: 'admin@libraryhub.in',
+        role: 'admin',
+        isActive: true,
+      });
+
+      const uniqueEmail = `feestudent_${Date.now()}@example.com`;
+      const testUser = await User.create({
+        name: 'Fee Adjustment Student',
+        email: uniqueEmail,
+        role: 'student',
+      });
+
+      const testMembership = await Membership.create({
+        userId: testUser._id,
+        planId: 'day-shift',
+        planName: 'Day Shift Plan',
+        slotType: 'DAY',
+        shiftTimings: '7:00 AM - 8:00 PM',
+        monthlyFeeInPaise: 50000,
+        billingAnchorDay: 1,
+        joiningDate: new Date(),
+        status: 'active',
+      });
+
+      const now = new Date();
+      const invoice = await FeeInvoice.create({
+        invoiceNumber: `INV-TEST-${Date.now()}`,
+        membershipId: testMembership._id,
+        userId: testUser._id,
+        periodKey: `${testMembership._id}_202611`,
+        issueDate: now,
+        dueDate: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000),
+        billingPeriodStart: now,
+        billingPeriodEnd: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000),
+        feeAmountInPaise: 50000,
+        amountPaidInPaise: 50000,
+        balanceInPaise: 0,
+        status: 'paid',
+      });
+
+      const receiptNo = generateReceiptNumber('RCP', now);
+      const payment = await Payment.create({
+        paymentNumber: receiptNo,
+        receiptNumber: receiptNo,
+        invoiceId: invoice._id,
+        membershipId: testMembership._id,
+        userId: testUser._id,
+        amountInPaise: 50000,
+        amountPaise: 50000,
+        amountInRupees: 500,
+        paymentMethod: 'CASH',
+        paymentDate: now,
+        isReversed: false,
+      });
+
+      const updateRes = await request(app)
+        .put(`/api/v1/memberships/${testMembership._id}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          monthlyFeeInPaise: 50000,
+          feeAction: 'MARK_UNPAID',
+          reason: 'Correcting accidental paid status',
+        });
+
+      expect(updateRes.status).toBe(200);
+      expect(updateRes.body.success).toBe(true);
+
+      const updatedInvoice = await FeeInvoice.findById(invoice._id);
+      expect(updatedInvoice.status).toBe('unpaid');
+      expect(updatedInvoice.amountPaidInPaise).toBe(0);
+      expect(updatedInvoice.balanceInPaise).toBe(50000);
+
+      const updatedPayment = await Payment.findById(payment._id);
+      expect(updatedPayment.isReversed).toBe(true);
+
+      await FeeInvoice.findByIdAndDelete(invoice._id);
+      await Payment.findByIdAndDelete(payment._id);
+      await Membership.findByIdAndDelete(testMembership._id);
+      await User.findByIdAndDelete(testUser._id);
     });
   });
 });

@@ -158,9 +158,13 @@ export async function createAndSendCampaign(req, res, next) {
       try {
         const result = await sendTransactionalEmail({
           to: recipient.email,
+          recipientName: recipient.name,
+          userId: recipient._id,
+          emailType: 'ANNOUNCEMENT',
           subject: personalizedSubject,
           html: personalizedHtml,
           text: textContent ? renderTemplate(textContent, vars) : undefined,
+          metadata: { campaignId: campaign._id },
         });
 
         await EmailRecipientLog.create({

@@ -138,6 +138,8 @@ export async function submitRegistration(req, res, next) {
     try {
       await sendTransactionalEmail({
         to: cleanEmail,
+        recipientName: studentName,
+        emailType: 'REGISTRATION_RECEIVED',
         subject: `Application Received: ${applicationNumber} - Library Hub Nawalpur`,
         text: `Hello ${studentName},\n\nWe have received your member registration application (${applicationNumber}) for Library Hub Nawalpur.\n\nYour application and Aadhar documents are currently under review by our administration. Once approved, you will receive another email and your student dashboard access will be activated.\n\nBest regards,\nLibrary Hub Nawalpur`,
         html: `

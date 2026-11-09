@@ -1,7 +1,7 @@
 import nodemailer from 'nodemailer';
 import config from '../config/index.js';
 import logger from '../utils/logger.js';
-import { EmailCampaign, EmailRecipientLog } from '../models/index.js';
+import { EmailCampaign, EmailRecipientLog, EmailDeliveryLog } from '../models/index.js';
 
 /**
  * Transporter setup
@@ -61,10 +61,23 @@ export function renderTemplate(templateString, variables = {}) {
 }
 
 /**
- * Send a single transactional email.
+ * Send a single transactional email and persist delivery log into EmailDeliveryLog.
  * Ensures that email failure NEVER breaks the calling database transaction.
  */
-export async function sendTransactionalEmail({ to, subject, html, text }) {
+export async function sendTransactionalEmail({
+  to,
+  subject,
+  html,
+  text,
+  emailType = 'GENERAL_TRANSACTIONAL',
+  recipientName = '',
+  userId = null,
+  metadata = {},
+}) {
+  let status = 'SENT';
+  let messageId = null;
+  let errorMsg = null;
+
   try {
     const from = config.email.from || '"Library Hub Nawalpur" <noreply@libraryhub.in>';
     const mailOptions = {
@@ -76,12 +89,38 @@ export async function sendTransactionalEmail({ to, subject, html, text }) {
     };
 
     const info = await transporter.sendMail(mailOptions);
+    messageId = info.messageId;
     logger.info(`Transactional email sent to ${to}: ${subject} (ID: ${info.messageId})`);
-    return { success: true, messageId: info.messageId };
   } catch (err) {
+    status = 'FAILED';
+    errorMsg = err.message;
     logger.error(`Failed to send transactional email to ${to}: ${err.message}`, { error: err });
-    // Soft failure: do not throw to prevent crashing caller operations
-    return { success: false, error: err.message };
+  }
+
+  // Asynchronously record delivery in EmailDeliveryLog (safe from crashing callers)
+  try {
+    await EmailDeliveryLog.create({
+      recipientEmail: to,
+      recipientName: recipientName || '',
+      userId: userId || null,
+      subject,
+      htmlContent: html || '',
+      textContent: text || (html ? html.replace(/<[^>]*>?/gm, '') : ''),
+      emailType,
+      status,
+      error: errorMsg,
+      messageId,
+      metadata,
+      sentAt: new Date(),
+    });
+  } catch (logErr) {
+    logger.warn(`Could not save EmailDeliveryLog: ${logErr.message}`);
+  }
+
+  if (status === 'SENT') {
+    return { success: true, messageId };
+  } else {
+    return { success: false, error: errorMsg };
   }
 }
 
@@ -104,7 +143,15 @@ export async function sendAttendanceInEmail({ user, timeStr, dateStr }) {
       <p style="color: #94a3b8; font-size: 12px; text-align: center;">Library Hub Nawalpur, Opp. Degree College, Salempur-Deoria Road, Nawalpur, UP</p>
     </div>
   `;
-  return sendTransactionalEmail({ to: user.email, subject, html });
+  return sendTransactionalEmail({
+    to: user.email,
+    subject,
+    html,
+    emailType: 'ATTENDANCE_IN',
+    recipientName: user.name,
+    userId: user._id,
+    metadata: { date: dateStr, time: timeStr },
+  });
 }
 
 /**
@@ -130,7 +177,15 @@ export async function sendAttendanceOutEmail({ user, timeStr, dateStr, durationM
       <p style="color: #94a3b8; font-size: 12px; text-align: center;">Library Hub Nawalpur</p>
     </div>
   `;
-  return sendTransactionalEmail({ to: user.email, subject, html });
+  return sendTransactionalEmail({
+    to: user.email,
+    subject,
+    html,
+    emailType: 'ATTENDANCE_OUT',
+    recipientName: user.name,
+    userId: user._id,
+    metadata: { date: dateStr, time: timeStr, durationMinutes },
+  });
 }
 
 /**
@@ -138,7 +193,7 @@ export async function sendAttendanceOutEmail({ user, timeStr, dateStr, durationM
  */
 export async function sendPaymentReceiptEmail({ user, payment, invoice }) {
   const amountRupees = (payment.amountPaise / 100).toFixed(2);
-  const remainingRupees = (invoice.balancePaise / 100).toFixed(2);
+  const remainingRupees = (invoice?.balancePaise !== undefined ? invoice.balancePaise / 100 : (invoice?.balanceInPaise !== undefined ? invoice.balanceInPaise / 100 : 0)).toFixed(2);
   const subject = `Library Hub Nawalpur - Payment Receipt #${payment.receiptNumber}`;
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
@@ -157,7 +212,15 @@ export async function sendPaymentReceiptEmail({ user, payment, invoice }) {
       <p style="color: #94a3b8; font-size: 12px; text-align: center;">Library Hub Nawalpur</p>
     </div>
   `;
-  return sendTransactionalEmail({ to: user.email, subject, html });
+  return sendTransactionalEmail({
+    to: user.email,
+    subject,
+    html,
+    emailType: 'PAYMENT_RECEIPT',
+    recipientName: user.name,
+    userId: user._id,
+    metadata: { receiptNumber: payment.receiptNumber, invoiceId: invoice?._id },
+  });
 }
 
 /**
@@ -207,7 +270,15 @@ export async function sendFeeReminderEmail({ user, amountRupees, planName, dueDa
       </p>
     </div>
   `;
-  return sendTransactionalEmail({ to: user.email, subject, html });
+  return sendTransactionalEmail({
+    to: user.email,
+    subject,
+    html,
+    emailType: 'FEE_REMINDER',
+    recipientName: user.name,
+    userId: user._id,
+    metadata: { invoiceNumber, amountRupees, dueDateStr },
+  });
 }
 
 export default {

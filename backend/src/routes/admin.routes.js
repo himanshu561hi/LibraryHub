@@ -9,6 +9,9 @@ import {
   listRegistrationApplications,
   approveRegistrationApplication,
   rejectRegistrationApplication,
+  listEmailLogs,
+  getEmailLogById,
+  resendEmail,
 } from '../controllers/admin.controller.js';
 import { authenticateToken, requireRole } from '../middlewares/auth.js';
 
@@ -28,6 +31,11 @@ router.get('/students/:id', getStudentDetail);
 
 // Append-only Audit logs
 router.get('/audit-logs', listAuditLogs);
+
+// System Email Delivery Logs
+router.get('/email-logs', listEmailLogs);
+router.get('/email-logs/:id', getEmailLogById);
+router.post('/email-logs/:id/resend', resendEmail);
 
 // CSV Export reports
 router.get('/reports/export-csv', exportCsvReport);
