@@ -6,6 +6,9 @@
   publish = "dist"
   command = "npm run build"
 
+[build.environment]
+  VITE_API_BASE_URL = "https://library-hub-amber.vercel.app/api/v1"
+
 # Block Netlify Injected Badge / HUD Script
 [[redirects]]
   from = "/.netlify/scripts/hud*"

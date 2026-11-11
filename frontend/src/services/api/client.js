@@ -3,7 +3,11 @@
  * Uses native fetch with standard error handling, query parameters, auth token injection, and timeout support.
  */
 
-const rawBaseUrl = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api/v1').trim().replace(/\/$/, '');
+const defaultBaseUrl = import.meta.env.PROD
+  ? 'https://library-hub-amber.vercel.app/api/v1'
+  : 'http://localhost:5001/api/v1';
+
+const rawBaseUrl = (import.meta.env.VITE_API_BASE_URL || defaultBaseUrl).trim().replace(/\/$/, '');
 const API_BASE_URL = rawBaseUrl.endsWith('/api/v1')
   ? rawBaseUrl
   : rawBaseUrl.endsWith('/api')

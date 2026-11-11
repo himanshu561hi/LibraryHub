@@ -58,12 +58,12 @@ Click the **"Deploy"** button. Vercel will install dependencies and deploy the b
 
 ## 🔍 Verification After Deployment
 
-Once deployed, Vercel will assign a URL like `https://library-hub-backend.vercel.app`.
+Once deployed, Vercel will assign a URL like `https://library-hub-amber.vercel.app`.
 
 ### 1. Health Check
 Open in your browser or run:
 ```bash
-curl https://<your-backend-domain>.vercel.app/api/v1/health
+curl https://library-hub-amber.vercel.app/api/v1/health
 ```
 **Expected Response:**
 ```json
