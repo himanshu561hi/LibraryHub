@@ -517,6 +517,7 @@ export async function updateMembership(req, res, next) {
       slotType,
       shiftTimings,
       monthlyFeeInPaise,
+      status,
       updateCurrentUnpaidInvoice = true,
       reason,
       feeAction = 'NO_CHANGE', // 'NO_CHANGE' | 'MARK_UNPAID' | 'MARK_PAID' | 'SET_AMOUNT'
@@ -558,14 +559,32 @@ export async function updateMembership(req, res, next) {
       membership.monthlyFeeInPaise = parsedFee;
     }
 
-    await membership.save();
-
-    const currentFeePaise = membership.monthlyFeeInPaise;
     const adminId = (req.user && req.user._id)
       ? req.user._id
       : (req.user && req.user.id && mongoose.Types.ObjectId.isValid(req.user.id))
         ? new mongoose.Types.ObjectId(req.user.id)
         : new mongoose.Types.ObjectId('507f1f77bcf86cd799439099');
+
+    // If admin explicitly requested reactivating this membership to active
+    if (status === 'active' && membership.status !== 'active') {
+      membership.status = 'active';
+      membership.reactivatedAt = new Date();
+      membership.reactivatedByAdminId = adminId;
+      membership.effectiveDeactivationDate = null;
+      membership.deactivationReason = null;
+      membership.deactivatedByAdminId = null;
+
+      await User.findByIdAndUpdate(membership.userId, {
+        isMember: true,
+        isActive: true,
+        deactivationReason: null,
+        currentMembership: membership._id,
+      });
+    }
+
+    await membership.save();
+
+    const currentFeePaise = membership.monthlyFeeInPaise;
 
     let updatedInvoice = null;
 

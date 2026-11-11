@@ -69,18 +69,40 @@ export async function checkAndDeactivateIfAbsent(user, membership) {
 
     const todayKey = getKolkataDateKey(); // 'YYYY-MM-DD' in Asia/Kolkata
 
+    // Determine baseline date of student's current active cycle:
+    // If student was reactivated by admin, their active cycle starts on reactivatedAt.
+    // If student never had reactivation, baseline is their joiningDate or creation date.
+    let baselineDateKey = null;
+    if (membership.reactivatedAt) {
+      baselineDateKey = getKolkataDateKey(new Date(membership.reactivatedAt));
+    } else if (membership.joiningDate) {
+      baselineDateKey = getKolkataDateKey(new Date(membership.joiningDate));
+    } else {
+      baselineDateKey = getKolkataDateKey(new Date(membership.createdAt || Date.now()));
+    }
+
+    // If joining date or reactivation date is in the future, the student cannot be marked absent
+    if (baselineDateKey > todayKey) {
+      return { deactivated: false, daysAbsent: 0, reason: null };
+    }
+
     // Find the latest attendance record for this user
     const lastAttendance = await Attendance.findOne({ userId: user._id || user.id })
       .sort({ date: -1 })
       .lean();
 
-    let lastActiveDateKey;
+    let lastActiveDateKey = baselineDateKey;
+
     if (lastAttendance && lastAttendance.date) {
-      lastActiveDateKey = lastAttendance.date;
-    } else {
-      // If student has never marked attendance yet, baseline from their reactivation or joining date
-      const baselineDate = membership.reactivatedAt || membership.joiningDate || membership.createdAt || new Date();
-      lastActiveDateKey = getKolkataDateKey(new Date(baselineDate));
+      // Only count attendance if it occurred on or after the baseline date (reactivation/joining)
+      if (lastAttendance.date >= baselineDateKey) {
+        lastActiveDateKey = lastAttendance.date;
+      }
+    }
+
+    // If student's last active date is today or later, days absent is 0
+    if (lastActiveDateKey >= todayKey) {
+      return { deactivated: false, daysAbsent: 0, reason: null };
     }
 
     // Calculate calendar days difference in Asia/Kolkata
@@ -88,7 +110,7 @@ export async function checkAndDeactivateIfAbsent(user, membership) {
     const [y2, m2, d2] = todayKey.split('-').map(Number);
     const date1Utc = Date.UTC(y1, m1 - 1, d1);
     const date2Utc = Date.UTC(y2, m2 - 1, d2);
-    const daysAbsent = Math.floor((date2Utc - date1Utc) / (24 * 60 * 60 * 1000));
+    const daysAbsent = Math.max(0, Math.floor((date2Utc - date1Utc) / (24 * 60 * 60 * 1000)));
 
     // Rule: Missing attendance for 2 consecutive days triggers auto-deactivation
     if (daysAbsent >= 2) {

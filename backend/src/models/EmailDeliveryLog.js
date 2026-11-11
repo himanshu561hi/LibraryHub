@@ -83,3 +83,4 @@ emailDeliveryLogSchema.index({ createdAt: -1 });
 
 export const EmailDeliveryLog = mongoose.model('EmailDeliveryLog', emailDeliveryLogSchema);
 export default EmailDeliveryLog;
+

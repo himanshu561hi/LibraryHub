@@ -1,11 +1,13 @@
 import { jest } from '@jest/globals';
 import request from 'supertest';
 import app from '../src/app.js';
-import { User, Admin, Membership, EmailDeliveryLog, FeeInvoice, Payment } from '../src/models/index.js';
+import { User, Admin, Membership, EmailDeliveryLog, FeeInvoice, Payment, Attendance } from '../src/models/index.js';
 import { generateToken } from '../src/utils/token.js';
 import { calculateNextBillingDate, calculateDueDate, generateInvoiceNumber, generateReceiptNumber } from '../src/utils/billingCalculator.js';
 import { escapeCsvCell } from '../src/controllers/admin.controller.js';
 import { connectDatabase } from '../src/config/db.js';
+import { sendFeeReminderEmail } from '../src/services/emailService.js';
+import { checkAndDeactivateIfAbsent } from '../src/jobs/attendanceJob.js';
 
 describe('Phase 05 - Phase 09 Features and Business Rules', () => {
   beforeAll(async () => {
@@ -13,7 +15,7 @@ describe('Phase 05 - Phase 09 Features and Business Rules', () => {
   }, 25000);
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    jest.restoreAllMocks();
   });
 
   describe('Billing & Calendar Engine Tests', () => {
@@ -279,6 +281,117 @@ describe('Phase 05 - Phase 09 Features and Business Rules', () => {
 
       await FeeInvoice.findByIdAndDelete(invoice._id);
       await Payment.findByIdAndDelete(payment._id);
+      await Membership.findByIdAndDelete(testMembership._id);
+      await User.findByIdAndDelete(testUser._id);
+    });
+
+    test('sendFeeReminderEmail contains production portal link and no localhost', async () => {
+      const mockUser = {
+        _id: '507f1f77bcf86cd799439099',
+        name: 'Test Student Portal',
+        email: 'student.portal.test@example.com',
+      };
+
+      const result = await sendFeeReminderEmail({
+        user: mockUser,
+        amountRupees: 500,
+        planName: 'Day Shift Plan',
+        dueDateStr: '15 Nov 2026',
+        invoiceNumber: 'INV-202611-0001',
+      });
+
+      expect(result).toBeDefined();
+      expect(result.sent || result.messageId || result.status).toBeTruthy();
+
+      // Check the created EmailDeliveryLog
+      const log = await EmailDeliveryLog.findOne({ recipientEmail: mockUser.email, emailType: 'FEE_REMINDER' }).sort({ createdAt: -1 });
+      expect(log).toBeDefined();
+      expect(log.htmlContent).toContain('https://libraryhubnawalpur.netlify.app/dashboard');
+      expect(log.htmlContent).not.toContain('http://localhost:3000');
+      if (log.textContent) {
+        expect(log.textContent).toContain('https://libraryhubnawalpur.netlify.app/dashboard');
+        expect(log.textContent).not.toContain('localhost');
+      }
+
+      await EmailDeliveryLog.findByIdAndDelete(log._id);
+    });
+
+    test('2-day attendance absence rule: auto-deactivates absent student but resets absence on admin reactivation', async () => {
+      const testEmail = `absent.student.${Date.now()}@example.com`;
+      const testUser = await User.create({
+        name: 'Absence Test Student',
+        email: testEmail,
+        role: 'student',
+        isMember: true,
+        isActive: true,
+      });
+
+      // Student joined 5 days ago
+      const fiveDaysAgo = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000);
+      const testMembership = await Membership.create({
+        userId: testUser._id,
+        planId: 'day-shift',
+        planName: 'Day Shift Plan',
+        slotType: 'DAY',
+        shiftTimings: '7:00 AM - 8:00 PM',
+        monthlyFeeInPaise: 50000,
+        billingAnchorDay: 1,
+        joiningDate: fiveDaysAgo,
+        status: 'active',
+      });
+      testUser.currentMembership = testMembership._id;
+      await testUser.save();
+
+      // Attendance was marked 3 days ago (e.g. absent for 3 consecutive days)
+      const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
+      const y = threeDaysAgo.getFullYear();
+      const m = String(threeDaysAgo.getMonth() + 1).padStart(2, '0');
+      const d = String(threeDaysAgo.getDate()).padStart(2, '0');
+      const attendanceDateKey = `${y}-${m}-${d}`;
+
+      const testAttendance = await Attendance.create({
+        userId: testUser._id,
+        membershipId: testMembership._id,
+        date: attendanceDateKey,
+        inTime: threeDaysAgo,
+        outTime: new Date(threeDaysAgo.getTime() + 4 * 60 * 60 * 1000),
+        status: 'COMPLETED',
+      });
+
+      // 1. Run checkAndDeactivateIfAbsent -> should detect 3 days absent and deactivate
+      const absenceResult = await checkAndDeactivateIfAbsent(testUser, testMembership);
+      expect(absenceResult.deactivated).toBe(true);
+      expect(absenceResult.daysAbsent).toBeGreaterThanOrEqual(2);
+
+      const deactivatedMembership = await Membership.findById(testMembership._id);
+      expect(deactivatedMembership.status).toBe('inactive');
+
+      const deactivatedUser = await User.findById(testUser._id);
+      expect(deactivatedUser.isActive).toBe(false);
+
+      // 2. Admin reactivates the membership today
+      deactivatedMembership.status = 'active';
+      deactivatedMembership.reactivatedAt = new Date();
+      deactivatedMembership.effectiveDeactivationDate = null;
+      deactivatedMembership.deactivationReason = null;
+      await deactivatedMembership.save();
+
+      deactivatedUser.isActive = true;
+      deactivatedUser.isMember = true;
+      deactivatedUser.deactivationReason = null;
+      await deactivatedUser.save();
+
+      // 3. Immediately run checkAndDeactivateIfAbsent again (as student does upon login)
+      const reactivatedAbsenceResult = await checkAndDeactivateIfAbsent(deactivatedUser, deactivatedMembership);
+      expect(reactivatedAbsenceResult.deactivated).toBe(false);
+      expect(reactivatedAbsenceResult.daysAbsent).toBe(0);
+
+      // Verify membership remains active
+      const finalMembership = await Membership.findById(testMembership._id);
+      expect(finalMembership.status).toBe('active');
+
+      // Cleanup
+      await Attendance.findByIdAndDelete(testAttendance._id);
       await Membership.findByIdAndDelete(testMembership._id);
       await User.findByIdAndDelete(testUser._id);
     });

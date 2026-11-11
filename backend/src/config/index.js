@@ -47,8 +47,11 @@ const config = {
     mockMode: process.env.EMAIL_MOCK_MODE !== 'false', // Default to safe mock mode
   },
 
+  // Frontend App URL (for email links and redirects)
+  frontendUrl: process.env.FRONTEND_URL || 'https://libraryhubnawalpur.netlify.app',
+
   // CORS Allowed Origins
-  corsOrigins: (process.env.CORS_ORIGINS || 'http://localhost:3000,http://localhost:5173')
+  corsOrigins: (process.env.CORS_ORIGINS || 'http://localhost:3000,http://localhost:5173,https://libraryhubnawalpur.netlify.app')
     .split(',')
     .map((origin) => origin.trim()),
 

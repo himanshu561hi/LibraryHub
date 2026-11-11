@@ -227,6 +227,8 @@ export async function sendPaymentReceiptEmail({ user, payment, invoice }) {
  * Send Fee Reminder email for pending dues
  */
 export async function sendFeeReminderEmail({ user, amountRupees, planName, dueDateStr, invoiceNumber }) {
+  const baseUrl = (config.frontendUrl || 'https://libraryhubnawalpur.netlify.app').replace(/\/+$/, '');
+  const portalUrl = `${baseUrl}/dashboard`;
   const subject = `Fee Reminder: Library Hub Nawalpur - Pending Dues ₹${amountRupees}`;
   const html = `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
@@ -258,7 +260,7 @@ export async function sendFeeReminderEmail({ user, amountRupees, planName, dueDa
       </p>
 
       <div style="text-align: center; margin: 24px 0;">
-        <a href="http://localhost:3000/dashboard" style="display: inline-block; background-color: #0f172a; color: #ffffff; text-decoration: none; font-weight: bold; font-size: 14px; padding: 12px 28px; border-radius: 8px;">
+        <a href="${portalUrl}" style="display: inline-block; background-color: #0f172a; color: #ffffff; text-decoration: none; font-weight: bold; font-size: 14px; padding: 12px 28px; border-radius: 8px;">
           Open Student Portal
         </a>
       </div>
@@ -270,10 +272,12 @@ export async function sendFeeReminderEmail({ user, amountRupees, planName, dueDa
       </p>
     </div>
   `;
+  const text = `Fee Reminder - Library Hub Nawalpur\n\nDear ${user.name},\nYour membership fee of ₹${amountRupees} is currently pending.\n${planName ? `Plan: ${planName}\n` : ''}${invoiceNumber ? `Invoice: ${invoiceNumber}\n` : ''}${dueDateStr ? `Due Date: ${dueDateStr}\n` : ''}\nPlease submit your pending fee at the reception counter or via your student portal:\n${portalUrl}\n\nLibrary Hub Nawalpur`;
   return sendTransactionalEmail({
     to: user.email,
     subject,
     html,
+    text,
     emailType: 'FEE_REMINDER',
     recipientName: user.name,
     userId: user._id,

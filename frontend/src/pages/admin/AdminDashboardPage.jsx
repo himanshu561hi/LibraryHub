@@ -759,6 +759,8 @@ export default function AdminDashboardPage() {
       paidAmountInRupees: isDue ? 0 : currentMonthlyFee,
       paymentMethod: 'CASH',
       feeNotes: '',
+      reactivateIfInactive: m.status !== 'active',
+      status: m.status,
     });
     setShowEditMemberModal(true);
   };
@@ -827,6 +829,7 @@ export default function AdminDashboardPage() {
         slotType: editForm.slotType,
         shiftTimings: editForm.shiftTimings,
         monthlyFeeInPaise: feeInPaise,
+        status: (editingMembership.status !== 'active' && editForm.reactivateIfInactive) ? 'active' : editForm.status,
         updateCurrentUnpaidInvoice: editForm.updateCurrentUnpaidInvoice,
         reason: editForm.reason.trim() || 'Shift and/or monthly fee updated by admin',
         feeAction: editForm.feeAction,
@@ -4337,6 +4340,26 @@ export default function AdminDashboardPage() {
             )}
 
             <form onSubmit={handleSaveEditMembership} className="space-y-4 text-xs">
+              {/* Reactivate Inactive Member Notice & Toggle */}
+              {editingMembership?.status !== 'active' && (
+                <label className="flex items-start gap-2.5 p-3 rounded-xl bg-emerald-50 border border-emerald-300 cursor-pointer shadow-soft-sm">
+                  <input
+                    type="checkbox"
+                    checked={editForm.reactivateIfInactive}
+                    onChange={(e) => setEditForm({ ...editForm, reactivateIfInactive: e.target.checked })}
+                    className="mt-0.5 rounded border-emerald-400 text-emerald-600 focus:ring-emerald-500"
+                  />
+                  <div>
+                    <span className="font-bold text-emerald-950 block text-xs">
+                      Reactivate Student & Restore Portal Login (सक्रिय करें एवं लॉगिन चालू करें)
+                    </span>
+                    <span className="text-[11px] text-emerald-800 block mt-0.5 leading-relaxed">
+                      This student is currently <strong>INACTIVE</strong> (due to 2 days attendance absence or admin deactivation). Saving with this checked will immediately mark them <strong>ACTIVE</strong>, reset their absence counter, and allow them to log in without issues.
+                    </span>
+                  </div>
+                </label>
+              )}
+
               {/* Shift Presets */}
               <div>
                 <label className="block font-bold text-brand-navy-800 uppercase tracking-wider mb-1.5">
@@ -5496,16 +5519,37 @@ export default function AdminDashboardPage() {
                 <span>Print Profile</span>
               </button>
 
-              <button
-                type="button"
-                onClick={() => {
-                  setShowStudentProfileModal(false);
-                  setSelectedStudentProfile(null);
-                }}
-                className="px-4 py-2 rounded-xl text-xs font-bold bg-brand-navy-950 hover:bg-brand-navy-900 text-white transition-colors shadow-soft-sm"
-              >
-                Close Profile
-              </button>
+              <div className="flex items-center gap-2">
+                {selectedStudentProfile.status !== 'active' && (
+                  <button
+                    type="button"
+                    disabled={reactivatingId === selectedStudentProfile._id}
+                    onClick={async () => {
+                      await handleReactivate(selectedStudentProfile._id, selectedStudentProfile.userId?.name);
+                      setSelectedStudentProfile((prev) => (prev ? { ...prev, status: 'active' } : null));
+                    }}
+                    className="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1.5 transition-colors shadow-soft-sm disabled:opacity-50"
+                  >
+                    {reactivatingId === selectedStudentProfile._id ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
+                    ) : (
+                      <CheckCircle2 className="w-3.5 h-3.5 text-white" />
+                    )}
+                    <span>Reactivate Student (सक्रिय करें)</span>
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowStudentProfileModal(false);
+                    setSelectedStudentProfile(null);
+                  }}
+                  className="px-4 py-2 rounded-xl text-xs font-bold bg-brand-navy-950 hover:bg-brand-navy-900 text-white transition-colors shadow-soft-sm"
+                >
+                  Close Profile
+                </button>
+              </div>
             </div>
           </div>
         </div>

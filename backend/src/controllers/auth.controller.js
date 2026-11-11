@@ -108,14 +108,21 @@ export const studentGoogleLogin = async (req, res, next) => {
       }
       if (hasChanges) await user.save();
 
-      // Populate membership
-      if (user.currentMembership) {
+      // Populate membership - prioritize active membership if available
+      let activeMembership = await Membership.findOne({ userId: user._id, status: 'active' }).sort({ updatedAt: -1 });
+      if (activeMembership) {
+        membership = activeMembership;
+        if (String(user.currentMembership) !== String(activeMembership._id) || !user.isMember || !user.isActive) {
+          user.currentMembership = activeMembership._id;
+          user.isMember = true;
+          user.isActive = true;
+          user.deactivationReason = null;
+          await user.save();
+        }
+      } else if (user.currentMembership) {
         membership = await Membership.findById(user.currentMembership);
       } else {
-        membership = await Membership.findOne({ userId: user._id, status: 'active' });
-        if (!membership) {
-          membership = await Membership.findOne({ userId: user._id }).sort({ createdAt: -1 });
-        }
+        membership = await Membership.findOne({ userId: user._id }).sort({ createdAt: -1 });
       }
 
       // 1. If membership is active, verify 2-day absence rule
